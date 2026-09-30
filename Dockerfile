@@ -11,6 +11,9 @@ WORKDIR /chessRobot
 
 COPY . /chessRobot
 
-RUN /bin/bash -c \
-    "source /opt/ros/jazzy/setup.bash && \
-     colcon build"
+
+RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+
+RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
+    rm -rf build/ install/ log/ && \
+    colcon build"

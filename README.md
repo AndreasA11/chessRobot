@@ -42,30 +42,31 @@ Development uses:
 * Stockfish
 * Ubuntu environment compatible with the target Raspberry Pi 5
 
-### Docker
+### Docker Development Workflow
 
-Build the project Docker image from the repository root:
-
+#### 1. Build the Docker Image
+Build the image containing your base dependencies (ROS2 Jazzy & Stockfish) from the repository root:
 ```bash
 docker build -t chessrobot .
 ```
 
-Start the development container:
-
+#### 2. Start the Development Container (With Volume Mount)
+Run this command to start the container. It maps your current local directory into the container so code updates sync instantly:
 ```bash
-docker run -it --name chessrobot-dev chessrobot
+docker run -it --rm --name chessrobot-dev -v "$(pwd)":/chessRobot chessrobot
+```
+*(Note: `--rm` ensures the container automatically cleans up when you exit, avoiding "name already in use" errors).*
+
+#### 3. Open an Additional Terminal Inside the Container
+If you already have the container running and need a second terminal session:
+```bash
+docker exec -it chessrobot-dev bash
 ```
 
-The Docker image includes:
-
-* ROS 2 Jazzy
-* Stockfish
-* Project dependencies
-
-Inside the container, source ROS 2:
-
+#### 4. Building inside the Container
+Because ROS2 Jazzy is automatically sourced in your `.bashrc`, you only need to run:
 ```bash
-source /opt/ros/jazzy/setup.bash
+colcon build
 ```
 
 Verify Stockfish:

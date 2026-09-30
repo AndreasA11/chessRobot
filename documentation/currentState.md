@@ -1,6 +1,19 @@
 CURRENT STATE DOCUMENTATION 
 
 
+Date: 9/29/2026
+
+
+Initial BoardState representation implemented.
+BoardState stores the internal chess board and game state, with translation between the internal state and FEN notation.
+UCI move parsing and additional FEN helper functions will be added as Stockfish communication is implemented.
+
+The BoardState ROS 2 node/driver still needs to be implemented. Its required interface will be finalized after Stockfish communication is added and the needed board state functions are identified.
+
+
+
+
+
 Date: 9/28/2026
 
 Project just started; overall implementation plan created.
@@ -33,3 +46,4 @@ BoardState         ChessMove       Move Piece
 
 
 The system should keep chess logic separate from robot movement so the same chess/planning software can eventually be used with a real robot.
+
