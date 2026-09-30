@@ -133,8 +133,18 @@ BoardState fromFEN(const std::string& fen) {
     std::istringstream iss(fen);
     std::string placement, side, castling, ep;
     int half = 0, full = 1;
-    if (!(iss >> placement >> side >> castling >> ep))
+    if (!(iss >> placement >> side >> castling >> ep >> half >> full)) {
         throw std::invalid_argument("fromFEN: expected at least 4 fields");
+    }
+    if (half < 0) {
+        throw std::invalid_argument("fromFEN: invalid halfmove clock");
+    }
+        
+
+    if (full < 1) {
+        throw std::invalid_argument("fromFEN: invalid fullmove counter");
+    }
+     
     // Clocks are optional in some FENs; keep defaults if missing
     if (iss >> half) iss >> full;
 
@@ -148,7 +158,7 @@ BoardState fromFEN(const std::string& fen) {
             --rank;
             file = 0;
             if (rank < 0) throw std::invalid_argument("fromFEN: too many ranks");
-        } else if (std::isdigit(static_cast<unsigned char>(c))) {
+        } else if (c >= '1' && c <= '8') {
             file += c - '0';
             if (file > 8) throw std::invalid_argument("fromFEN: rank overflow");
         } else if (isValidPieceChar(c)) {
@@ -181,8 +191,11 @@ BoardState fromFEN(const std::string& fen) {
 
     // En passant
     if (ep != "-") {
-        if (ep.size() != 2 || !inBounds(ep[0] - 'a', ep[1] - '1'))
+        if (ep.size() != 2 ||
+            ep[0] < 'a' || ep[0] > 'h' ||
+            (ep[1] != '3' && ep[1] != '6')) {
             throw std::invalid_argument("fromFEN: bad en passant square");
+        }
         st.enPassant_ = Square{ep[0] - 'a', ep[1] - '1'};
     }
 

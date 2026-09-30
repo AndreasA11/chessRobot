@@ -1,5 +1,18 @@
 CURRENT STATE DOCUMENTATION 
 
+Date: 9/30/2026
+
+BoardState implementation is complete, including board representation, FEN conversion, UCI move parsing, move description, and move application.
+
+BoardStateNode has been implemented as the ROS 2 interface for maintaining and updating the current BoardState.
+
+BoardStateNode receives human/engine moves as ROS string messages, translates them internally, validates basic move information, updates the BoardState, and publishes the resulting FEN.
+
+The ROS interface uses strings while UCI translation is handled internally by the respective nodes. This keeps the ROS communication separate from the Stockfish UCI protocol.
+
+Initial unit tests have been created for BoardState and BoardStateNode. BoardState tests currently pass; ROS node tests will be run in the ROS 2 environment.
+
+Next step is implementing StockfishNode to handle the Stockfish process, UCI communication, FEN input, and engine move output.
 
 Date: 9/29/2026
 
@@ -10,8 +23,9 @@ UCI move parsing and additional FEN helper functions will be added as Stockfish 
 
 The BoardState ROS 2 node/driver still needs to be implemented. Its required interface will be finalized after Stockfish communication is added and the needed board state functions are identified.
 
+UCI protocal will follow this documentation: https://gist.github.com/DOBRO/2592c6dad754ba67e6dcaec8c90165bf
 
-
+FEN protocal will follow this documentation: https://chessprogramming.org/Forsyth-Edwards_Notation 
 
 
 Date: 9/28/2026

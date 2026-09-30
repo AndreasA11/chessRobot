@@ -2,24 +2,26 @@
 
 ## Current Implementation Order
 
-1. Create a chess board/state representation.
-2. Convert the board state into a format Stockfish can use, likely FEN.
-3. Integrate Stockfish with ROS 2.
-4. Add user-configurable Stockfish skill/strength.
-5. Represent Stockfish's output as a `Move`.
-6. Given `BoardState` + `Move`, create a robot manipulation plan.
-7. Simulate basic piece movement.
-8. Add captures and special moves:
+1. Create a chess board/state representation. **Complete**
+2. Convert the board state into FEN. **Complete**
+3. Implement UCI move parsing. **Complete**
+4. Implement the `BoardStateNode` ROS 2 interface. **Complete**
+5. Add automated tests for BoardState and BoardStateNode. **Complete**
+6. Integrate Stockfish with ROS 2. **In progress**
+7. Add user-configurable Stockfish skill/strength.
+8. Complete the FEN → Stockfish → UCI move → BoardState loop.
+9. Represent the resulting chess move for robot manipulation.
+10. Given `BoardState` + `Move`, create a robot manipulation plan.
+11. Simulate basic piece movement.
+12. Add/verify physical handling of captures and special moves.
+13. Add board/robot visualization.
+14. Later add camera-based board perception.
+15. Later add a more realistic robot simulation and motion planning.
+16. Eventually connect the robot controller to physical hardware.
 
-   * Castling
-   * Promotion
-   * En passant
-9. Add board/robot visualization.
-10. Later add camera-based board perception.
-11. Later add a more realistic robot simulation and motion planning.
-12. Eventually connect the robot controller to physical hardware.
+---
 
-## Architecture
+# Architecture
 
 ```text
        PERCEPTION              PLANNING              ACTION
@@ -35,17 +37,19 @@
                                                     Board Change
 ```
 
-### 1. Board Perception
+## ROS 2 Planning Flow
 
-Determine the current chess board state.
+```text
+                  FEN
+BoardStateNode ─────────────▶ StockfishNode
+      ▲                            │
+      │                            │ UCI move
+      └────────────────────────────┘
+```
 
-### 2. Chess Planning
+ROS messages are currently represented as strings at the node boundaries.
 
-Give the current board state to Stockfish and determine the move to play.
-
-### 3. Robot Manipulation
-
-Given the board state and selected move, generate and execute the physical actions required to make that move.
+The UCI protocol is kept internal to the Stockfish interface rather than being exposed directly as the ROS message format.
 
 ---
 
@@ -128,13 +132,13 @@ This is called **before** `applyMove()`.
 
 Updates the board state after a move.
 
-`applyMove()` assumes the supplied move is legal. Move legality and chess-engine decisions are not the responsibility of `BoardState`.
+`applyMove()` assumes the supplied move is legal. Full move legality remains outside the responsibility of `BoardState`.
 
 ---
 
 # FEN
 
-FEN is the planned interface between `BoardState` and Stockfish.
+FEN is the interface between `BoardState` and `Stockfish`.
 
 ```text
 BoardState
@@ -164,7 +168,7 @@ std::string FEN::toFEN(const BoardState&);
 
 `toFEN()` converts the current board state into a FEN position for Stockfish.
 
-`fromFEN()` allows a board state to be initialized from an existing FEN position, which will also be useful for testing and simulation.
+`fromFEN()` allows a board state to be initialized from an existing FEN position, which is useful for testing and simulation.
 
 ---
 
@@ -172,7 +176,7 @@ std::string FEN::toFEN(const BoardState&);
 
 Stockfish communicates moves using UCI notation.
 
-The `UCI` namespace will convert Stockfish's move representation into the project's `Move` representation.
+The `UCI` namespace converts Stockfish's move representation into the project's internal `Move` representation.
 
 ```cpp
 Move UCI::parseUCI(const std::string&);
@@ -184,13 +188,59 @@ For example:
 e2e4
 ```
 
-becomes a move from:
+becomes:
 
 ```text
 e2 → e4
 ```
 
 This keeps Stockfish's communication format separate from the internal board representation.
+
+---
+
+# BoardStateNode
+
+`BoardStateNode` provides the ROS 2 interface to `BoardState`.
+
+Its responsibilities are:
+
+* Maintain the current `BoardState`
+* Receive moves through ROS messages
+* Convert incoming move strings into `Move`
+* Perform basic move validation
+* Apply accepted moves
+* Publish the updated board as FEN
+
+The node supports:
+
+* Configurable starting FEN
+* Configurable engine color
+* Transient-local FEN publication
+
+The node does not perform Stockfish search.
+
+## Current Move Flow
+
+```text
+Incoming ROS Move
+       │
+       ▼
+ Parse UCI
+       │
+       ▼
+ Basic Validation
+       │
+       ▼
+ BoardState::applyMove()
+       │
+       ▼
+ FEN::toFEN()
+       │
+       ▼
+ Publish Board FEN
+```
+
+Full chess move legality is still delegated to Stockfish / future chess logic. The current node checks basic conditions such as turn and piece ownership before applying a move.
 
 ---
 
@@ -202,30 +252,26 @@ It does not handle:
 
 * Move generation
 * Move evaluation
-* Check/checkmate detection
 * Engine search
 * Piece attack tables
 * Magic bitboards
 * Stockfish logic
 
-Those responsibilities belong to Stockfish or higher-level packages.
+`BoardStateNode` is responsible for connecting the board representation to the ROS 2 system.
+
+`StockfishNode` will be responsible for communicating with and controlling the Stockfish process.
 
 The intended flow is:
 
 ```text
-BoardState
-    │
-    │ FEN
-    ▼
-Stockfish
-    │
-    │ UCI move
-    ▼
-Move
-    │
-    ▼
-BoardState
-    │
-    ▼
-Robot manipulation
+                BoardStateNode
+                 │          ▲
+                 │ FEN      │ UCI move
+                 ▼          │
+              StockfishNode
+                 │
+                 ▼
+              Stockfish
 ```
+
+The resulting move will eventually be passed to the robot manipulation layer.

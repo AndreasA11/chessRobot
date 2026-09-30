@@ -1,7 +1,7 @@
 #ifndef H_boardState
 #define H_boardState
 
-
+#include "rclcpp/rclcpp.hpp"
 #include "boardTypes.hpp"
 #include <cstdint>
 #include <array>
@@ -38,6 +38,9 @@ class BoardState {
         // assumes the move is legal
         void applyMove(const Move& m); 
 
+        //turns a square into a string format
+        static std::string squareToString(Square s);
+
     private:
         Piece board_[8][8]; //board[rank][file]
         Color sideToMove_ = Color::White;
@@ -45,7 +48,7 @@ class BoardState {
         std::optional<Square> enPassant_;
         int halfmoveClock_ = 0;
         int fullmoveNumber_ = 1;
-        static std::string squareToString(Square s);
+        
 
         friend BoardState FEN::fromFEN(const std::string&);
         friend std::string FEN::toFEN(const BoardState&);
