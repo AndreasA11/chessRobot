@@ -1,7 +1,6 @@
 #ifndef H_boardState
 #define H_boardState
 
-#include "rclcpp/rclcpp.hpp"
 #include "boardTypes.hpp"
 #include <cstdint>
 #include <array>

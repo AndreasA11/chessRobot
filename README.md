@@ -88,7 +88,7 @@ colcon build
 Then source the workspace:
 
 ```bash
-source install/setu
+source install/setup
 ```
 
 

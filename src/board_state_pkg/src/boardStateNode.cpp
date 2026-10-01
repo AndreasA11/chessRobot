@@ -17,9 +17,10 @@ Color colorOfPiece(Piece p) {
 
 const char* colorName(Color c) { return c == Color::White ? "white" : "black"; }
 
-}  // namespace
-
-BoardStateNode::BoardStateNode() : rclcpp::Node("board_state_node") {
+}
+  // namespace
+BoardStateNode::BoardStateNode(const rclcpp::NodeOptions& options)
+    : rclcpp::Node("board_state_node", options) {
     // ---- parameters
     const std::string startFen = declare_parameter<std::string>(
         "start_fen", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -110,18 +111,4 @@ void BoardStateNode::publishFEN() {
     std_msgs::msg::String msg;
     msg.data = FEN::toFEN(board_);
     boardFenPub_->publish(msg);
-}
-
-int main(int argc, char** argv) {
-    rclcpp::init(argc, argv);
-    try {
-        rclcpp::spin(std::make_shared<BoardStateNode>());
-    } catch (const std::exception& e) {
-        RCLCPP_FATAL(rclcpp::get_logger("main"), "Fatal: %s", e.what());
-        rclcpp::shutdown();
-        return 1;
-    }
-
-    rclcpp::shutdown();
-    return 0;
 }

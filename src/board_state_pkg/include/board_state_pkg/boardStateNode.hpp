@@ -1,5 +1,6 @@
 
 #include "boardState.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include <string>
 
@@ -15,7 +16,7 @@
 //   engine_color  (string) "white" | "black"
 class BoardStateNode :  public rclcpp::Node {
     public: 
-        explicit BoardStateNode();
+        explicit BoardStateNode(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
         
     private:
         void onEngineMove(const std_msgs::msg::String::SharedPtr msg);

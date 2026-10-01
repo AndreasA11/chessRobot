@@ -1,20 +1,59 @@
 cmake_minimum_required(VERSION 3.8)
+
 project(board_state_pkg)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+# Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-include_directories(include)
-
-add_executable(board_state_node
-  src/boardStateNode.cpp
+# BoardState library
+add_library(board_state_lib
   src/boardState.cpp
+)
+
+target_include_directories(board_state_lib PUBLIC
+  include/board_state_pkg
+)
+
+# BoardStateNode library
+add_library(board_state_node_lib
+  src/boardStateNode.cpp
+)
+
+# ament_target_dependencies(
+#   board_state_lib
+#   rclcpp
+#   std_msgs
+# )
+
+target_include_directories(board_state_node_lib PUBLIC
+  include/board_state_pkg
+)
+
+ament_target_dependencies(
+  board_state_node_lib
+  rclcpp
+  std_msgs
+)
+
+target_link_libraries(
+  board_state_node_lib
+  board_state_lib
+)
+
+# Normal ROS node executable
+add_executable(board_state_node
+  src/board_state_node_main.cpp
+)
+
+target_link_libraries(
+  board_state_node
+  board_state_node_lib
 )
 
 ament_target_dependencies(
@@ -23,39 +62,41 @@ ament_target_dependencies(
   std_msgs
 )
 
-target_include_directories(board_state_node PRIVATE
-  include/board_state_pkg
-  src
-)
-
-add_library(board_state_lib src/boardState.cpp)
-
-target_include_directories(board_state_lib PUBLIC include)
-
-add_library(board_state_node_lib src/boardStateNode.cpp)
-
-ament_target_dependencies(board_state_node_lib rclcpp std_msgs)
-
-target_link_libraries(board_state_node_lib board_state_lib)
-
-add_executable(board_state_node src/board_state_node_main.cpp)
-
-target_link_libraries(board_state_node board_state_node_lib)
-
-install(TARGETS board_state_node DESTINATION lib/${PROJECT_NAME})
-
+# Tests
 if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_board_state test/test_board_state.cpp)
-  target_link_libraries(test_board_state board_state_lib)
 
-  # own main() (calls rclcpp::init), so skip gtest_main
-  ament_add_gtest(test_board_state_node test/test_board_state_node.cpp SKIP_LINKING_MAIN_LIBRARIES)
-  target_link_libraries(test_board_state_node board_state_node_lib GTest::gtest)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  # BoardState unit tests
+  ament_add_gtest(
+    test_board_state
+    tests/test_board_state.cpp
+  )
+
+  target_link_libraries(
+    test_board_state
+    board_state_lib
+  )
+
+  # BoardStateNode tests
+  # This test provides its own main() because it calls rclcpp::init().
+  ament_add_gtest(
+    test_board_state_node
+    tests/test_board_state_node.cpp
+    SKIP_LINKING_MAIN_LIBRARIES
+  )
+
+  target_link_libraries(
+    test_board_state_node
+    board_state_node_lib
+  )
+
 endif()
 
-install(TARGETS
-  board_state_node
+# Install normal executable
+install(
+  TARGETS
+    board_state_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
