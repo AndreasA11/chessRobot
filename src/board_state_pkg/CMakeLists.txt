@@ -48,7 +48,7 @@ target_link_libraries(
 
 # Normal ROS node executable
 add_executable(board_state_node
-  src/board_state_node_main.cpp
+  src/boardStateNodeMain.cpp
 )
 
 target_link_libraries(
