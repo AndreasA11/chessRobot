@@ -13,6 +13,12 @@
 
 namespace {
 
+// Writing to a pipe whose reader died raises SIGPIPE, which would kill the whole
+// ROS node. Ignore it so write() just fails with EPIPE and we throw instead.
+void ignoreSigpipeOnce() {
+    static std::once_flag flag;
+    std::call_once(flag, [] { std::signal(SIGPIPE, SIG_IGN); });
+}
 
 void closeIfOpen(int& fd) {
     if (fd >= 0) { ::close(fd); fd = -1; }
@@ -21,10 +27,7 @@ void closeIfOpen(int& fd) {
 }  // namespace
 
 EngineProcess::EngineProcess(const std::string& path) {
-    // Writing to a pipe whose reader died raises SIGPIPE, which would kill the whole
-    // ROS node. Ignore it so write() just fails with EPIPE and we throw instead.
-    static std::once_flag flag;
-    std::call_once(flag, [] { std::signal(SIGPIPE, SIG_IGN); });
+    ignoreSigpipeOnce();
 
     // in:  parent writes in[1] -> child stdin (in[0])
     // out: child stdout (out[1]) -> parent reads out[0]
@@ -32,15 +35,15 @@ EngineProcess::EngineProcess(const std::string& path) {
     // All ends are O_CLOEXEC, so a successful exec closes the unused ones for us
     // (dup2 clears the flag on the fds that become stdin/stdout).
     int in[2], out[2], err[2];
-    if (pipe(in) != 0)
-        throw std::runtime_error(std::string("pipe failed: ") + std::strerror(errno));
-    if (pipe(out) != 0) {
+    if (pipe2(in, O_CLOEXEC) != 0)
+        throw std::runtime_error(std::string("pipe2 failed: ") + std::strerror(errno));
+    if (pipe2(out, O_CLOEXEC) != 0) {
         ::close(in[0]); ::close(in[1]);
-        throw std::runtime_error(std::string("pipe failed: ") + std::strerror(errno));
+        throw std::runtime_error(std::string("pipe2 failed: ") + std::strerror(errno));
     }
-    if (pipe(err) != 0) {
+    if (pipe2(err, O_CLOEXEC) != 0) {
         ::close(in[0]); ::close(in[1]); ::close(out[0]); ::close(out[1]);
-        throw std::runtime_error(std::string("pipe failed: ") + std::strerror(errno));
+        throw std::runtime_error(std::string("pipe2 failed: ") + std::strerror(errno));
     }
 
     const char* cpath = path.c_str();   // resolved before fork: no allocation in the child
@@ -54,8 +57,13 @@ EngineProcess::EngineProcess(const std::string& path) {
 
     if (pid == 0) {
         // Child: only async-signal-safe calls from here until exec.
-        ::dup2(in[0], STDIN_FILENO);
-        ::dup2(out[1], STDOUT_FILENO);
+        // dup2(a, a) does nothing, and in particular does NOT clear O_CLOEXEC. That case
+        // happens when the parent had fd 0 or 1 closed, so pipe2 handed out that number.
+        // Clear the flag by hand, otherwise exec would close the child's stdin/stdout.
+        if (in[0] == STDIN_FILENO)   ::fcntl(in[0], F_SETFD, 0);
+        else                         ::dup2(in[0], STDIN_FILENO);
+        if (out[1] == STDOUT_FILENO) ::fcntl(out[1], F_SETFD, 0);
+        else                         ::dup2(out[1], STDOUT_FILENO);
         // stderr stays inherited so engine errors show up in the node's console.
         ::execlp(cpath, cpath, static_cast<char*>(nullptr));
         const int e = errno;
@@ -81,7 +89,7 @@ EngineProcess::EngineProcess(const std::string& path) {
         throw std::runtime_error("failed to launch '" + path + "': " + std::strerror(childErrno));
     }
 
-    enginePid_  = pid;
+    pid_        = pid;
     toEngine_   = in[1];
     fromEngine_ = out[0];
 }
@@ -93,7 +101,7 @@ EngineProcess::~EngineProcess() {
 
 void EngineProcess::writeLine(const std::string& line) {
     std::lock_guard<std::mutex> lock(writeMutex_);
-    if (toEngine_ < 0) {throw std::runtime_error("engine stdin is closed");} 
+    if (toEngine_ < 0) throw std::runtime_error("engine stdin is closed");
 
     const std::string data = line + '\n';
     size_t off = 0;
@@ -110,7 +118,7 @@ void EngineProcess::writeLine(const std::string& line) {
 bool EngineProcess::readLine(std::string& out) {
     if (fromEngine_ < 0) return false;
 
-    while (true) {
+    for (;;) {
         const auto pos = buffer_.find('\n');
         if (pos != std::string::npos) {
             out = buffer_.substr(0, pos);
@@ -120,11 +128,8 @@ bool EngineProcess::readLine(std::string& out) {
         }
 
         char chunk[4096];
-        const ssize_t n = ::read(fromEngine_, chunk, sizeo(chunk));
-        if (n > 0) { 
-            buffer_.append(chunk, static_cast<size_t>(n)); 
-            continue; 
-        }
+        const ssize_t n = ::read(fromEngine_, chunk, sizeof chunk);
+        if (n > 0) { buffer_.append(chunk, static_cast<size_t>(n)); continue; }
         if (n < 0 && errno == EINTR) continue;
 
         // EOF or error: hand back a trailing unterminated line once, then report end.
@@ -142,14 +147,14 @@ void EngineProcess::shutdown() {
         std::lock_guard<std::mutex> lock(writeMutex_);
         closeIfOpen(toEngine_);                 // EOF on stdin makes Stockfish quit
     }
-    if (enginePid_ <= 0) return;
+    if (pid_ <= 0) return;
 
     for (int i = 0; i < 50; ++i) {              // up to ~500 ms for a clean exit
-        const pid_t r = ::waitpid(enginePid_, nullptr, WNOHANG);
-        if (r == enginePid_ || (r < 0 && errno != EINTR)) { enginePid_ = -1; return; }
+        const pid_t r = ::waitpid(pid_, nullptr, WNOHANG);
+        if (r == pid_ || (r < 0 && errno != EINTR)) { pid_ = -1; return; }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    ::kill(enginePid_, SIGKILL);
-    ::waitpid(enginePid_, nullptr, 0);
-    enginePid_ = -1;
+    ::kill(pid_, SIGKILL);
+    ::waitpid(pid_, nullptr, 0);
+    pid_ = -1;
 }

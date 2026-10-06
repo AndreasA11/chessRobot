@@ -3,8 +3,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-#include "stockfishNode.hpp"
-#include "engineProcess.hpp"
+#include "StockfishNode.hpp"
+#include "EngineProcess.hpp"
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);

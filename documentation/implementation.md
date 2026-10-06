@@ -228,3 +228,285 @@ The UCI library handles:
 * Parsing `id`
 * Parsing `option`
 * Parsing*
+
+# EngineProcess
+
+`EngineProcess` manages the Stockfish child process and its communication pipes.
+
+It is independent of UCI and ROS. Its only responsibility is moving data between the ROS node and the Stockfish process.
+
+## Process Communication
+
+Two pipes are used for normal communication:
+
+```text
+                 Stockfish
+                ┌──────────┐
+                │          │
+       stdin ◀──┤          ├──▶ stdout
+                └──────────┘
+                    ▲  │
+                    │  │
+                    │  │
+              toEngine_  fromEngine_
+                    │  │
+                    ▼  ▼
+               StockfishNode
+```
+
+The parent writes UCI commands through `toEngine_` and reads Stockfish output through `fromEngine_`.
+
+A third pipe is used during startup to report an `exec()` failure from the child process.
+
+## `writeLine()`
+
+```cpp
+void writeLine(const std::string&);
+```
+
+Sends one complete command to Stockfish.
+
+A newline is appended automatically.
+
+The function may be called from multiple threads and uses a mutex to prevent concurrent writes from being mixed together.
+
+The underlying `write()` call may write only part of the command, so `writeLine()` continues writing until the entire command has been sent.
+
+## `readLine()`
+
+```cpp
+bool readLine(std::string&);
+```
+
+Reads one complete Stockfish output line at a time.
+
+The underlying `read()` call does not guarantee one line per call. It may return:
+
+* Part of a line
+* One line
+* Multiple lines
+
+`buffer_` stores unread engine output between calls.
+
+```text
+Stockfish output
+       │
+       ▼
+     read()
+       │
+       ▼
+   buffer_
+       │
+       ▼
+   readLine()
+       │
+       ▼
+ complete line
+```
+
+`readLine()` is called repeatedly by the Stockfish reader thread:
+
+```cpp
+std::string line;
+
+while (engine.readLine(line)) {
+    // process line
+}
+```
+
+The function returns `false` when the engine reaches EOF or the read fails.
+
+## Shutdown
+
+`shutdown()` closes Stockfish's stdin, allowing the process to exit normally.
+
+It waits briefly for a clean exit. If Stockfish does not exit, the process is terminated and reaped.
+
+The destructor calls `shutdown()` to clean up the Stockfish process and its remaining pipe.
+
+# StockfishNode
+
+`StockfishNode` provides the ROS 2 interface to the Stockfish engine.
+
+It connects the `EngineProcess` and `UCI` layers while managing the engine's state and deciding how to respond to Stockfish messages.
+
+Its responsibilities are:
+
+* Start and configure Stockfish
+* Perform the UCI handshake
+* Receive FEN positions through ROS 2
+* Start Stockfish searches
+* Handle engine responses
+* Publish the selected UCI move
+* Manage new positions arriving while the engine is busy
+
+## ROS Parameters
+
+The node currently supports:
+
+```text
+engine_path
+threads
+hash_mb
+skill_level
+move_time_ms
+fen_topic
+move_topic
+```
+
+The default search time is 1000 ms.
+
+## UCI Handshake
+
+When the node starts, it sends:
+
+```text
+uci
+```
+
+After receiving `uciok`, it configures Stockfish and sends:
+
+```text
+setoption name Threads value ...
+setoption name Hash value ...
+setoption name Skill Level value ...
+ucinewgame
+isready
+```
+
+After receiving `readyok`, the engine is ready to search.
+
+## Search Flow
+
+A FEN received from the ROS 2 `fen_topic` is passed to Stockfish as:
+
+```text
+position fen <FEN>
+go movetime <time>
+```
+
+Stockfish then produces `info` messages followed by a `bestmove`.
+
+The `bestmove` is published through the `move_topic`.
+
+```text
+FEN
+ │
+ ▼
+StockfishNode
+ │
+ ├── position fen ...
+ ├── go movetime ...
+ │
+ ▼
+Stockfish
+ │
+ ├── info ...
+ ├── info ...
+ └── bestmove e2e4
+             │
+             ▼
+       StockfishNode
+             │
+             ▼
+      ROS move topic
+```
+
+## Engine State
+
+The node tracks the engine using several states:
+
+```text
+WaitingUciOk
+      │
+      ▼
+WaitingReadyOk
+      │
+      ▼
+    Idle
+      │
+      ▼
+ Searching
+      │
+      ▼
+    Idle
+```
+
+A FEN received while the engine is starting is stored as `pendingFen_`.
+
+A FEN received while searching causes the current search to be stopped. Its `bestmove` is then discarded because it belongs to an outdated position.
+
+Only the newest pending FEN is retained.
+
+## Engine Output
+
+`StockfishNode` passes each line from `EngineProcess` to:
+
+```cpp
+uci::parseLine(line)
+```
+
+The resulting `std::variant` is handled by `handleParsedOutput()`.
+
+```text
+Stockfish stdout
+       │
+       ▼
+EngineProcess::readLine()
+       │
+       ▼
+UCI::parseLine()
+       │
+       ▼
+UCI::Message
+       │
+       ├── UciOk
+       ├── ReadyOk
+       ├── IdLine
+       ├── Option
+       ├── Info
+       ├── BestMove
+       └── Unknown
+       │
+       ▼
+StockfishNode handler
+```
+
+`StockfishNode` decides what action to take for each message type, while the UCI library only interprets the protocol.
+
+## Current Move Flow
+
+The complete engine-side flow is now:
+
+```text
+BoardStateNode
+      │
+      │ FEN
+      ▼
+StockfishNode
+      │
+      ▼
+UCI command builders
+      │
+      ▼
+EngineProcess
+      │
+      ▼
+Stockfish
+      │
+      │ bestmove
+      ▼
+EngineProcess
+      │
+      ▼
+UCI parser
+      │
+      ▼
+StockfishNode
+      │
+      │ UCI move
+      ▼
+BoardStateNode
+```
+
+The remaining work is connecting this completed Stockfish flow to the robot manipulation layer.

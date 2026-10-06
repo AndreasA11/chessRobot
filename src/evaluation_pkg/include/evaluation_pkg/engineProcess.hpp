@@ -48,7 +48,7 @@ class EngineProcess {
     private:
     int toEngine_ = -1;//write end of parent -> engine pipe
     int fromEngine_ = -1;//read end of engine -> parent pipe
-    pid_t enginePid_ = -1;
+    pid_t pid_ = -1;
     std::string buffer_;
     std::mutex  writeMutex_;
     

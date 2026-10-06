@@ -1,5 +1,53 @@
 CURRENT STATE DOCUMENTATION 
 
+Date: 10/5/2026
+
+EngineProcess and StockfishNode have been implemented for Stockfish communication.
+
+EngineProcess has been implemented to manage the Stockfish process using POSIX pipes.
+
+It can start Stockfish, write UCI commands to its stdin, read output lines from stdout, and shut the process down safely.
+
+readLine() buffers raw engine output and returns one complete line at a time. writeLine() sends one complete command at a time and handles partial writes.
+
+The process layer is independent of UCI and ROS. It only handles communication with the Stockfish process.
+
+EngineProcess manages the Stockfish child process using POSIX pipes. It handles starting the process, writing commands, reading output lines, and shutting the process down.
+
+StockfishNode provides the ROS 2 interface to Stockfish. It uses EngineProcess for process communication and the UCI library for building commands and parsing engine responses.
+
+The node performs the UCI handshake, configures Stockfish using ROS parameters, accepts FEN positions, starts timed searches, and publishes the resulting UCI move.
+
+The node also handles new FEN positions arriving while Stockfish is starting or searching. Outdated searches are stopped and their resulting moves are discarded.
+
+Current ROS 2 flow:
+
+BoardStateNode
+      │
+      │ FEN
+      ▼
+StockfishNode
+      │
+      ▼
+EngineProcess
+      │
+      ▼
+Stockfish
+      │
+      │ bestmove
+      ▼
+EngineProcess
+      │
+      ▼
+StockfishNode
+      │
+      │ UCI move
+      ▼
+BoardStateNode
+
+
+Next step is completing the full FEN → Stockfish → UCI move → BoardState loop and then beginning the robot manipulation layer.
+
 
 10/3/2026
 
