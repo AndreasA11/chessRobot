@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "boardState.hpp"
+#include "BoardState.hpp"
 
 namespace {
 

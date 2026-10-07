@@ -1,5 +1,9 @@
 
-#include "boardState.hpp"
+#ifndef H_boardStateNode
+#define H_boardStateNode
+
+
+#include "BoardState.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include <string>
@@ -40,3 +44,5 @@ class BoardStateNode :  public rclcpp::Node {
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr boardFenPub_;
 
 };
+
+#endif

@@ -13,7 +13,7 @@ find_package(std_msgs REQUIRED)
 
 # BoardState library
 add_library(board_state_lib
-  src/boardState.cpp
+  src/BoardState.cpp
 )
 
 target_include_directories(board_state_lib PUBLIC
@@ -22,7 +22,7 @@ target_include_directories(board_state_lib PUBLIC
 
 # BoardStateNode library
 add_library(board_state_node_lib
-  src/boardStateNode.cpp
+  src/BoardStateNode.cpp
 )
 
 # ament_target_dependencies(
@@ -48,7 +48,7 @@ target_link_libraries(
 
 # Normal ROS node executable
 add_executable(board_state_node
-  src/boardStateNodeMain.cpp
+  src/BoardStateNodeMain.cpp
 )
 
 target_link_libraries(
@@ -90,6 +90,18 @@ if(BUILD_TESTING)
     test_board_state_node
     board_state_node_lib
   )
+
+  #occupancy tests
+  ament_add_gtest(
+    test_occupancy
+    tests/test_occupancy.cpp
+  )
+
+  target_link_libraries(
+    test_occupancy
+    board_state_lib
+  )
+  
 
 endif()
 

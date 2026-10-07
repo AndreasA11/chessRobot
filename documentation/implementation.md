@@ -8,17 +8,21 @@
 4. Implement the `BoardStateNode` ROS 2 interface. **Complete**
 5. Add automated tests for BoardState and BoardStateNode. **Complete**
 6. Implement the UCI protocol library for Stockfish communication. **Complete**
-7. Integrate Stockfish with ROS 2. **In progress**
-8. Add user-configurable Stockfish skill/strength.
-9. Complete the FEN → Stockfish → UCI move → BoardState loop.
-10. Represent the resulting chess move for robot manipulation.
-11. Given `BoardState` + `Move`, create a robot manipulation plan.
-12. Simulate basic piece movement.
-13. Add/verify physical handling of captures and special moves.
-14. Add board/robot visualization.
-15. Later add camera-based board perception.
-16. Later add a more realistic robot simulation and motion planning.
-17. Eventually connect the robot controller to physical hardware.
+7. Integrate Stockfish with ROS 2. **Complete**
+8. Add user-configurable Stockfish skill/strength. **In Progress**
+9. Complete the FEN → Stockfish → UCI move → BoardState loop. **Complete**
+10. Implement Occupancy as the board perception representation. **Complete**
+11. Implement board-state change inference from observed occupancy. **Complete**
+12. Implement move diagnosis and legality checking for inferred moves.
+13. Represent the resulting chess move for robot manipulation.
+14. Given `BoardState` + `Move`, create a robot manipulation plan.
+15. Simulate basic piece movement.
+16. Add/verify physical handling of captures and special moves.
+17. Add board/robot visualization.
+18. Later add camera-based board perception.
+19. Later add a more realistic robot simulation and motion planning.
+20. Eventually connect the robot controller to physical hardware.
+
 
 ---
 
@@ -510,3 +514,150 @@ BoardStateNode
 ```
 
 The remaining work is connecting this completed Stockfish flow to the robot manipulation layer.
+
+Occupancy
+
+Occupancy is a lossy projection of BoardState used to represent what the physical-board perception system can observe.
+
+Unlike BoardState, it does not attempt to represent a complete chess position.
+
+Each square contains only:
+
+enum class Cell : uint8_t {
+    Empty,
+    White,
+    Black
+};
+
+The occupancy board therefore answers only:
+
+Is there a piece on this square, and if so, what color is it?
+
+BoardState vs Occupancy
+
+	BoardState	Occupancy
+Piece type	Yes	No
+Piece color	Yes	Yes
+Empty squares	Yes	Yes
+Side to move	Yes	No
+Castling rights	Yes	No
+En passant	Yes	No
+Move counters	Yes	No
+
+For example, BoardState can distinguish:
+
+White Pawn
+White Knight
+White Bishop
+White Rook
+White Queen
+White King
+
+while Occupancy represents all of them simply as:
+
+White
+
+The same applies to black pieces.
+
+Why Occupancy Exists
+
+A physical perception system may be able to reliably determine that a square is occupied without reliably identifying the exact chess piece.
+
+For example:
+
+Camera
+   │
+   ▼
+Square e4
+   │
+   ▼
+"White piece detected"
+
+This can be represented as:
+
+Cell::White
+
+The camera cannot directly observe information such as:
+
+Side to move
+Castling rights
+En passant target
+Move counters
+
+Therefore this information remains in BoardState.
+
+Constructing Occupancy
+
+Occupancy can be constructed from an existing BoardState:
+
+Occupancy occupancy(boardState);
+
+This performs a lossy conversion:
+
+BoardState
+    │
+    │ discard piece type
+    ▼
+Occupancy
+
+The reverse conversion is not generally possible because multiple BoardState positions can produce the same Occupancy.
+
+For example:
+
+White Pawn on e4 ──┐
+White Bishop on e4 ├──▶ White on e4
+White Queen on e4 ─┘
+
+Therefore Occupancy should be treated as an observation rather than an authoritative chess position.
+
+Board State Inference
+
+The purpose of Occupancy is to allow the perception system to determine what changed on the physical board.
+
+The system compares an observed Occupancy against the expected position from BoardState.
+
+             BoardState
+                  │
+                  ▼
+             Occupancy
+             (expected)
+                  │
+                  │ compare
+                  ▼
+Camera ─────▶ Occupancy
+(observed)         │
+                   ▼
+             Changed squares
+                   │
+                   ▼
+            Candidate Move
+
+The existing BoardState provides information that Occupancy does not contain.
+
+For example, if:
+
+e2 = White
+e4 = Empty
+
+in the expected occupancy and the camera observes:
+
+e2 = Empty
+e4 = White
+
+the system can infer:
+
+e2 → e4
+
+The piece type can then be obtained from the existing BoardState:
+
+BoardState:
+e2 = White Pawn
+
+Occupancy:
+e2 → Empty
+e4 → White
+
+Inference:
+White Pawn e2 → e4
+
+The inference layer should identify what physical change most likely occurred. It should not replace BoardState or independently maintain a second chess position.

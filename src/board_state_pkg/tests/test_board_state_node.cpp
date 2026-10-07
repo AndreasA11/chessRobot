@@ -10,7 +10,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 
-#include "boardStateNode.hpp"
+#include "BoardStateNode.hpp"
 
 using std_msgs::msg::String;
 using namespace std::chrono_literals;

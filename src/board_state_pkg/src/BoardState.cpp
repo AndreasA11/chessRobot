@@ -1,40 +1,11 @@
-#include "boardState.hpp"
+#include "BoardState.hpp"
 
 #include <cctype>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
 
-namespace {
 
-char ch(Piece p) { return static_cast<char>(p); }
-
-bool isEmpty(Piece p) { return p == Piece::Empty; }
-bool isWhite(Piece p) { return std::isupper(static_cast<unsigned char>(ch(p))) != 0; }
-
-Color colorOf(Piece p) { return isWhite(p) ? Color::White : Color::Black; }
-
-char typeOf(Piece p) { return static_cast<char>(std::toupper(static_cast<unsigned char>(ch(p)))); }
-
-Piece colorize(Piece tag, Color c) {
-    if (isEmpty(tag)) return Piece::Empty;
-    char t = typeOf(tag);
-    return static_cast<Piece>(c == Color::White ? t : std::tolower(static_cast<unsigned char>(t)));
-}
-
-bool isValidPieceChar(char c) {
-    switch (c) {
-        case 'P': case 'N': case 'B': case 'R': case 'Q': case 'K':
-        case 'p': case 'n': case 'b': case 'r': case 'q': case 'k':
-            return true;
-        default:
-            return false;
-    }
-}
-
-bool inBounds(int file, int rank) { return file >= 0 && file < 8 && rank >= 0 && rank < 8; }
-
-}  // namespace
 
 // ---------------------------------------------------------------- BoardState
 
@@ -161,7 +132,7 @@ BoardState fromFEN(const std::string& fen) {
         } else if (c >= '1' && c <= '8') {
             file += c - '0';
             if (file > 8) throw std::invalid_argument("fromFEN: rank overflow");
-        } else if (isValidPieceChar(c)) {
+        } else if (BoardState::isValidPieceChar(c)) {
             if (file >= 8) throw std::invalid_argument("fromFEN: rank overflow");
             st.board_[rank][file++] = static_cast<Piece>(c);
         } else {
@@ -211,11 +182,11 @@ std::string toFEN(const BoardState& st) {
         int empties = 0;
         for (int file = 0; file < 8; ++file) {
             Piece p = st.board_[rank][file];
-            if (isEmpty(p)) {
+            if (BoardState::isEmpty(p)) {
                 ++empties;
             } else {
                 if (empties) { out += static_cast<char>('0' + empties); empties = 0; }
-                out += ch(p);
+                out += BoardState::ch(p);
             }
         }
         if (empties) out += static_cast<char>('0' + empties);
@@ -251,7 +222,7 @@ Move parseUCI(const std::string& s) {
     Move m;
     m.from = {s[0] - 'a', s[1] - '1'};
     m.to = {s[2] - 'a', s[3] - '1'};
-    if (!inBounds(m.from.file, m.from.rank) || !inBounds(m.to.file, m.to.rank))
+    if (!BoardState::inBounds(m.from.file, m.from.rank) || !BoardState::inBounds(m.to.file, m.to.rank))
         throw std::invalid_argument("parseUCI: square out of range in '" + s + "'");
 
     if (s.size() == 5) {

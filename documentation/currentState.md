@@ -1,5 +1,49 @@
 CURRENT STATE DOCUMENTATION 
 
+10/6/2026
+
+Occupancy is being introduced as a simplified representation of the physical board.
+
+Unlike BoardState, it only stores:
+
+Empty
+White
+Black
+
+for each square.
+
+It intentionally does not store piece type, side to move, castling rights, en passant state, or move counters.
+
+BoardState
+    │
+    │ lossy projection
+    ▼
+Occupancy
+
+This allows the perception system to report what it can reliably observe from a physical board without requiring it to determine the complete chess state.
+
+The planned perception flow is:
+
+Physical Board
+      │
+      ▼
+Camera / Sensor
+      │
+      ▼
+Observed Occupancy
+      │
+      │ compare with expected state
+      ▼
+Candidate Move
+      │
+      ▼
+Move Diagnosis
+      │
+      ▼
+BoardState
+
+The inference layer will use the existing BoardState to provide information that Occupancy does not contain, such as piece type, side to move, castling rights, and en passant state.
+
 Date: 10/5/2026
 
 EngineProcess and StockfishNode have been implemented for Stockfish communication.

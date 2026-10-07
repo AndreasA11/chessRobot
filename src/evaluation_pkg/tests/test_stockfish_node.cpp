@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <memory>
@@ -92,8 +93,18 @@ protected:
     }
 
     void startNode(const Config& cfg) {
+        // Real ROS topics are shared by every process on the same ROS_DOMAIN_ID (other test
+        // runs, boardState nodes, `ros2 topic echo`, ...). Give each test its own private topic
+        // names so nothing else can feed the node FENs or consume its moves.
+        static std::atomic<int> counter{0};
+        const std::string prefix = "stockfish_test_" + std::to_string(getpid()) + "_" + std::to_string(counter++);
+        fenTopic_  = prefix + "/fen";
+        moveTopic_ = prefix + "/move";
+
         rclcpp::NodeOptions opts;
         opts.parameter_overrides({
+            rclcpp::Parameter("fen_topic", fenTopic_),
+            rclcpp::Parameter("move_topic", moveTopic_),
             rclcpp::Parameter("engine_path", cfg.enginePath),
             rclcpp::Parameter("threads", cfg.threads),
             rclcpp::Parameter("hash_mb", cfg.hashMb),
@@ -103,9 +114,9 @@ protected:
         node_ = std::make_shared<StockfishNode>(opts);
 
         helper_ = std::make_shared<rclcpp::Node>("stockfish_node_test_helper");
-        fenPub_ = helper_->create_publisher<std_msgs::msg::String>("board_fen", 10);
+        fenPub_ = helper_->create_publisher<std_msgs::msg::String>(fenTopic_, 10);
         moveSub_ = helper_->create_subscription<std_msgs::msg::String>(
-            "stockfish_move", 10, [this](const std_msgs::msg::String& m) { moves_.push_back(m.data); });
+            moveTopic_, 10, [this](const std_msgs::msg::String& m) { moves_.push_back(m.data); });
 
         exec_.add_node(node_);
         exec_.add_node(helper_);
@@ -156,6 +167,7 @@ protected:
 
     TempDir dir_;
     std::string logPath_;
+    std::string fenTopic_, moveTopic_;
     std::shared_ptr<StockfishNode> node_;
     std::shared_ptr<rclcpp::Node> helper_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr fenPub_;

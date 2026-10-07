@@ -1,6 +1,6 @@
 
-#include "boardStateNode.hpp"
-#include "boardState.hpp"
+#include "BoardStateNode.hpp"
+#include "BoardState.hpp"
 #include <iostream>
 #include <cctype>
 #include <functional>
