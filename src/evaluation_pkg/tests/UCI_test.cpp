@@ -1,21 +1,21 @@
-// Tests for the UCI protocol layer (command builders and parseLine). No ROS, no engine.
-#include <gtest/gtest.h>
-
 #include "UCI.hpp"
+
+#include <gtest/gtest.h>
 
 using namespace uci;
 
 namespace {
-template <class T>
-const T& as(const Message& m) {
-    EXPECT_TRUE(std::holds_alternative<T>(m)) << "message has a different type than expected";
-    return std::get<T>(m);   // throws bad_variant_access (reported by gtest) if wrong
-}
-}  // namespace
 
-// ---------------------------------------------------------------------------
-// GUI -> engine builders
-// ---------------------------------------------------------------------------
+template <class T>
+const T &As(const Message &m) {
+    EXPECT_TRUE(std::holds_alternative<T>(m)) << "message has a different type than expected";
+    return std::get<T>(m);
+}
+
+} // namespace
+
+//GUI TO ENGINE BUILDERS TESTS
+
 TEST(UciBuilders, SimpleCommands) {
     EXPECT_EQ(cmdUci(), "uci");
     EXPECT_EQ(cmdIsReady(), "isready");
@@ -40,7 +40,7 @@ TEST(UciBuilders, PositionFen) {
 }
 
 TEST(UciBuilders, SetOption) {
-    EXPECT_EQ(cmdSetOption("Clear Hash"), "setoption name Clear Hash");   // button: no value
+    EXPECT_EQ(cmdSetOption("Clear Hash"), "setoption name Clear Hash");
     EXPECT_EQ(cmdSetOption("Hash", "128"), "setoption name Hash value 128");
     EXPECT_EQ(cmdSetOption("Skill Level", "5"), "setoption name Skill Level value 5");
 }
@@ -63,28 +63,27 @@ TEST(UciBuilders, GoOmitsUnsetFieldsAndPutsSearchMovesLast) {
     EXPECT_EQ(cmdGo(GoParams{}), "go");
 }
 
-// ---------------------------------------------------------------------------
-// engine -> GUI parsing
-// ---------------------------------------------------------------------------
+//ENGINE TO GUI PARSING TESTS
+
 TEST(UciParse, UciOkAndReadyOk) {
     EXPECT_TRUE(std::holds_alternative<UciOk>(parseLine("uciok")));
     EXPECT_TRUE(std::holds_alternative<ReadyOk>(parseLine("readyok")));
-    EXPECT_TRUE(std::holds_alternative<ReadyOk>(parseLine("readyok\r")));   // trailing CR is whitespace
+    EXPECT_TRUE(std::holds_alternative<ReadyOk>(parseLine("readyok\r")));
 }
 
 TEST(UciParse, UnknownForEmptyOrNonUciLines) {
     EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("")));
     EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("   ")));
     EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("Stockfish 17 by the Stockfish developers")));
-    EXPECT_EQ(as<Unknown>(parseLine("hello world")).raw, "hello world");
+    EXPECT_EQ(As<Unknown>(parseLine("hello world")).raw, "hello world");
 }
 
 TEST(UciParse, IdLines) {
-    const auto name = as<IdLine>(parseLine("id name Stockfish 17.1"));
+    const IdLine name = As<IdLine>(parseLine("id name Stockfish 17.1"));
     EXPECT_EQ(name.field, IdLine::Field::Name);
     EXPECT_EQ(name.value, "Stockfish 17.1");
 
-    const auto author = as<IdLine>(parseLine("id author the Stockfish developers (see AUTHORS file)"));
+    const IdLine author = As<IdLine>(parseLine("id author the Stockfish developers (see AUTHORS file)"));
     EXPECT_EQ(author.field, IdLine::Field::Author);
     EXPECT_EQ(author.value, "the Stockfish developers (see AUTHORS file)");
 
@@ -93,7 +92,7 @@ TEST(UciParse, IdLines) {
 }
 
 TEST(UciParse, SpinOption) {
-    const auto o = as<Option>(parseLine("option name Hash type spin default 16 min 1 max 33554432"));
+    const Option o = As<Option>(parseLine("option name Hash type spin default 16 min 1 max 33554432"));
     EXPECT_EQ(o.name, "Hash");
     EXPECT_EQ(o.type, Option::Type::Spin);
     EXPECT_EQ(o.defaultValue, "16");
@@ -104,22 +103,22 @@ TEST(UciParse, SpinOption) {
 }
 
 TEST(UciParse, OptionNamesMayContainSpaces) {
-    const auto button = as<Option>(parseLine("option name Clear Hash type button"));
+    const Option button = As<Option>(parseLine("option name Clear Hash type button"));
     EXPECT_EQ(button.name, "Clear Hash");
     EXPECT_EQ(button.type, Option::Type::Button);
 
-    const auto str = as<Option>(parseLine("option name Debug Log File type string default <empty>"));
+    const Option str = As<Option>(parseLine("option name Debug Log File type string default <empty>"));
     EXPECT_EQ(str.name, "Debug Log File");
     EXPECT_EQ(str.type, Option::Type::String);
     EXPECT_EQ(str.defaultValue, "<empty>");
 }
 
 TEST(UciParse, CheckAndComboOptions) {
-    const auto check = as<Option>(parseLine("option name Ponder type check default false"));
+    const Option check = As<Option>(parseLine("option name Ponder type check default false"));
     EXPECT_EQ(check.type, Option::Type::Check);
     EXPECT_EQ(check.defaultValue, "false");
 
-    const auto combo = as<Option>(parseLine("option name Style type combo default Normal var Solid var Normal var Risky"));
+    const Option combo = As<Option>(parseLine("option name Style type combo default Normal var Solid var Normal var Risky"));
     EXPECT_EQ(combo.type, Option::Type::Combo);
     ASSERT_EQ(combo.vars.size(), 3u);
     EXPECT_EQ(combo.vars[0], "Solid");
@@ -128,12 +127,12 @@ TEST(UciParse, CheckAndComboOptions) {
 
 TEST(UciParse, MalformedOptionIsUnknown) {
     EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("option")));
-    EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("option name Hash")));                   // no type
-    EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("option name Hash type banana")));       // bad type
+    EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("option name Hash")));
+    EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("option name Hash type banana")));
 }
 
 TEST(UciParse, FullInfoLine) {
-    const auto i = as<Info>(parseLine(
+    const Info i = As<Info>(parseLine(
         "info depth 12 seldepth 18 multipv 1 score cp 34 nodes 123456 nps 987654 hashfull 12 tbhits 0 time 125 pv e2e4 e7e5 g1f3"));
     EXPECT_EQ(i.depth, 12);
     EXPECT_EQ(i.seldepth, 18);
@@ -151,53 +150,53 @@ TEST(UciParse, FullInfoLine) {
 }
 
 TEST(UciParse, MateScoreWithBoundAndWdl) {
-    const auto i = as<Info>(parseLine("info depth 20 score mate -3 lowerbound wdl 0 0 1000 nodes 5 pv a1a2"));
+    const Info i = As<Info>(parseLine("info depth 20 score mate -3 lowerbound wdl 0 0 1000 nodes 5 pv a1a2"));
     ASSERT_TRUE(i.score.has_value());
     EXPECT_EQ(i.score->kind, Score::Kind::Mate);
     EXPECT_EQ(i.score->value, -3);
     EXPECT_EQ(i.score->bound, Score::Bound::Lower);
-    EXPECT_EQ(i.nodes, 5u);        // fields after the unstored `wdl w d l` are still read
+    EXPECT_EQ(i.nodes, 5u);
     EXPECT_EQ(i.pv.size(), 1u);
 }
 
 TEST(UciParse, UpperBoundScore) {
-    const auto i = as<Info>(parseLine("info depth 5 score cp -20 upperbound"));
+    const Info i = As<Info>(parseLine("info depth 5 score cp -20 upperbound"));
     ASSERT_TRUE(i.score.has_value());
     EXPECT_EQ(i.score->bound, Score::Bound::Upper);
 }
 
 TEST(UciParse, InfoStringTakesTheRestOfTheLine) {
-    const auto i = as<Info>(parseLine("info string NNUE evaluation using nn-1111.nnue"));
+    const Info i = As<Info>(parseLine("info string NNUE evaluation using nn-1111.nnue"));
     ASSERT_TRUE(i.text.has_value());
     EXPECT_EQ(*i.text, "NNUE evaluation using nn-1111.nnue");
 }
 
 TEST(UciParse, InfoCurrMove) {
-    const auto i = as<Info>(parseLine("info currmove e2e4 currmovenumber 1"));
+    const Info i = As<Info>(parseLine("info currmove e2e4 currmovenumber 1"));
     EXPECT_EQ(i.currMove, "e2e4");
     EXPECT_EQ(i.currMoveNumber, 1);
 }
 
 TEST(UciParse, TruncatedInfoLinesDoNotCrashOrInventValues) {
-    const auto a = as<Info>(parseLine("info depth"));
+    const Info a = As<Info>(parseLine("info depth"));
     EXPECT_FALSE(a.depth.has_value());
-    const auto b = as<Info>(parseLine("info score cp"));
+    const Info b = As<Info>(parseLine("info score cp"));
     EXPECT_FALSE(b.score.has_value());
-    const auto c = as<Info>(parseLine("info depth notanumber nodes 7"));
+    const Info c = As<Info>(parseLine("info depth notanumber nodes 7"));
     EXPECT_FALSE(c.depth.has_value());
     EXPECT_EQ(c.nodes, 7u);
 }
 
 TEST(UciParse, BestMove) {
-    const auto withPonder = as<BestMove>(parseLine("bestmove e2e4 ponder e7e5"));
+    const BestMove withPonder = As<BestMove>(parseLine("bestmove e2e4 ponder e7e5"));
     EXPECT_EQ(withPonder.move, "e2e4");
     EXPECT_EQ(withPonder.ponder, "e7e5");
 
-    const auto none = as<BestMove>(parseLine("bestmove (none)"));
+    const BestMove none = As<BestMove>(parseLine("bestmove (none)"));
     EXPECT_EQ(none.move, "(none)");
     EXPECT_FALSE(none.ponder.has_value());
 
-    const auto promo = as<BestMove>(parseLine("bestmove e7e8q"));
+    const BestMove promo = As<BestMove>(parseLine("bestmove e7e8q"));
     EXPECT_EQ(promo.move, "e7e8q");
 
     EXPECT_TRUE(std::holds_alternative<Unknown>(parseLine("bestmove")));

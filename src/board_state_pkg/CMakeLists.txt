@@ -14,6 +14,8 @@ find_package(std_msgs REQUIRED)
 # BoardState library
 add_library(board_state_lib
   src/BoardState.cpp
+  src/Diagnose.cpp
+  src/Infer.cpp
 )
 
 target_include_directories(board_state_lib PUBLIC

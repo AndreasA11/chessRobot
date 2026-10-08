@@ -1,9 +1,8 @@
-// Tests for StockfishNode. The engine is a scripted fake (python3) that logs every command
-// it receives and answers deterministically, so behaviour can be checked exactly.
-// One test uses the real Stockfish if installed.
-//
-// Works against real rclcpp (run under ament_add_gtest) or the in-process stub in stub/.
+#include "StockfishNode.hpp"
+#include "test_helpers.hpp"
+
 #include <gtest/gtest.h>
+#include <sys/wait.h>
 
 #include <algorithm>
 #include <atomic>
@@ -13,22 +12,11 @@
 #include <string>
 #include <vector>
 
-#include <sys/wait.h>
-
-#include "StockfishNode.hpp"
-#include "test_helpers.hpp"
-
-using namespace std::chrono_literals;
 using testutil::TempDir;
 
 namespace {
 
-// Fake engine behaviour (decided from the last `position` line it saw):
-//   FEN contains "NONE"  -> bestmove (none)
-//   FEN contains " b "   -> bestmove e7e5
-//   otherwise            -> bestmove e2e4
-// Every received command is appended to the log file, one per line.
-std::string fakeEngineSource(const std::string& logPath, double startupDelaySec, double goDelaySec) {
+std::string FakeEngineSource(const std::string &logPath, double startupDelaySec, double goDelaySec) {
     std::string src = R"PY(#!/usr/bin/env python3
 import sys, time
 LOG, STARTUP, GO = "%LOG%", %STARTUP%, %GO%
@@ -58,7 +46,7 @@ for line in sys.stdin:
     elif cmd == "quit":
         break
 )PY";
-    auto replace = [&](const std::string& key, const std::string& val) {
+    auto replace = [&](const std::string &key, const std::string &val) {
         src.replace(src.find(key), key.size(), val);
     };
     replace("%LOG%", logPath);
@@ -69,36 +57,44 @@ for line in sys.stdin:
 
 struct Config {
     std::string enginePath;
-    int threads = 1, hashMb = 16, skillLevel = 20, moveTimeMs = 100;
+    int threads = 1;
+    int hashMb = 16;
+    int skillLevel = 20;
+    int moveTimeMs = 100;
 };
 
-const char* kWhiteFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const char* kBlackFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+const char *kWhiteFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const char *kBlackFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
 
-}  // namespace
+} // namespace
 
 class StockfishNodeTest : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() { if (!rclcpp::ok()) rclcpp::init(0, nullptr); }
-    static void TearDownTestSuite() { rclcpp::shutdown(); }
+    static void SetUpTestSuite() {
+        if(!rclcpp::ok()) {
+            rclcpp::init(0, nullptr);
+        }
+    }
 
-    void TearDown() override { stopNode(); }
+    static void TearDownTestSuite() {
+        rclcpp::shutdown();
+    }
 
-    // Builds a node whose engine is the fake script. Returns the log file path.
+    void TearDown() override {
+        stopNode();
+    }
+
     std::string startFakeNode(double startupDelaySec = 0.0, double goDelaySec = 0.05, Config cfg = {}) {
         logPath_ = dir_.path() + "/engine.log";
-        cfg.enginePath = dir_.writeScript("fake_engine.py", fakeEngineSource(logPath_, startupDelaySec, goDelaySec));
+        cfg.enginePath = dir_.writeScript("fake_engine.py", FakeEngineSource(logPath_, startupDelaySec, goDelaySec));
         startNode(cfg);
         return logPath_;
     }
 
-    void startNode(const Config& cfg) {
-        // Real ROS topics are shared by every process on the same ROS_DOMAIN_ID (other test
-        // runs, boardState nodes, `ros2 topic echo`, ...). Give each test its own private topic
-        // names so nothing else can feed the node FENs or consume its moves.
+    void startNode(const Config &cfg) {
         static std::atomic<int> counter{0};
         const std::string prefix = "stockfish_test_" + std::to_string(getpid()) + "_" + std::to_string(counter++);
-        fenTopic_  = prefix + "/fen";
+        fenTopic_ = prefix + "/fen";
         moveTopic_ = prefix + "/move";
 
         rclcpp::NodeOptions opts;
@@ -116,69 +112,76 @@ protected:
         helper_ = std::make_shared<rclcpp::Node>("stockfish_node_test_helper");
         fenPub_ = helper_->create_publisher<std_msgs::msg::String>(fenTopic_, 10);
         moveSub_ = helper_->create_subscription<std_msgs::msg::String>(
-            moveTopic_, 10, [this](const std_msgs::msg::String& m) { moves_.push_back(m.data); });
+            moveTopic_, 10, [this](const std_msgs::msg::String &m) { moves_.push_back(m.data); });
 
         exec_.add_node(node_);
         exec_.add_node(helper_);
 
-        // Publishers and subscribers find each other asynchronously in real ROS; a message
-        // published before they are matched is silently lost.
         ASSERT_TRUE(spinUntil([&] {
-            return fenPub_->get_subscription_count() >= 1 && moveSub_->get_publisher_count() >= 1;
-        }, 5000ms)) << "helper never connected to the node's topics";
+            return (fenPub_->get_subscription_count() >= 1 && moveSub_->get_publisher_count() >= 1);
+        }, std::chrono::milliseconds(5000))) << "helper never connected to the node's topics";
     }
 
     void stopNode() {
-        if (node_) exec_.remove_node(node_);
+        if(node_) {
+            exec_.remove_node(node_);
+        }
         node_.reset();
         moveSub_.reset();
         fenPub_.reset();
         helper_.reset();
     }
 
-    void publishFen(const std::string& fen) {
-        std_msgs::msg::String m;
+    void publishFen(const std::string &fen) {
+        std_msgs::msg::String m{};
         m.data = fen;
         fenPub_->publish(m);
     }
 
-    // Runs the executor on this thread until `pred` is true or `timeout` passes.
-    bool spinUntil(const std::function<bool()>& pred, std::chrono::milliseconds timeout) {
-        const auto deadline = std::chrono::steady_clock::now() + timeout;
-        while (std::chrono::steady_clock::now() < deadline) {
+    bool spinUntil(const std::function<bool()> &pred, std::chrono::milliseconds timeout) {
+        const std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + timeout;
+        while(std::chrono::steady_clock::now() < deadline) {
             exec_.spin_some();
-            if (pred()) return true;
-            std::this_thread::sleep_for(5ms);
+            if(pred()) {
+                return true;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         exec_.spin_some();
         return pred();
     }
-    void spinFor(std::chrono::milliseconds d) { spinUntil([] { return false; }, d); }
-    bool waitForMoves(size_t n, std::chrono::milliseconds timeout = 5000ms) {
-        return spinUntil([&] { return moves_.size() >= n; }, timeout);
+
+    void spinFor(std::chrono::milliseconds d) {
+        spinUntil([] { return false; }, d);
     }
-    bool logContains(const std::string& line) const {
-        const auto lines = testutil::readLines(logPath_);
-        return std::find(lines.begin(), lines.end(), line) != lines.end();
+
+    bool waitForMoves(size_t n, std::chrono::milliseconds timeout = std::chrono::milliseconds(5000)) {
+        return spinUntil([&] { return (moves_.size() >= n); }, timeout);
     }
-    bool waitForLogLine(const std::string& line, std::chrono::milliseconds timeout = 5000ms) {
+
+    bool logContains(const std::string &line) const {
+        const std::vector<std::string> lines = testutil::readLines(logPath_);
+        return (std::find(lines.begin(), lines.end(), line) != lines.end());
+    }
+
+    bool waitForLogLine(const std::string &line, std::chrono::milliseconds timeout = std::chrono::milliseconds(5000)) {
         return spinUntil([&] { return logContains(line); }, timeout);
     }
 
     TempDir dir_;
-    std::string logPath_;
-    std::string fenTopic_, moveTopic_;
-    std::shared_ptr<StockfishNode> node_;
-    std::shared_ptr<rclcpp::Node> helper_;
+    std::vector<std::string> moves_{};
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr fenPub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr moveSub_;
     rclcpp::executors::SingleThreadedExecutor exec_;
-    std::vector<std::string> moves_;   // only touched from the thread that spins the executor
+    std::shared_ptr<StockfishNode> node_;
+    std::shared_ptr<rclcpp::Node> helper_;
+    std::string logPath_;
+    std::string fenTopic_;
+    std::string moveTopic_;
 };
 
-// ---------------------------------------------------------------------------
-// Startup
-// ---------------------------------------------------------------------------
+//STARTUP TESTS
+
 TEST_F(StockfishNodeTest, ConstructorThrowsWhenEngineCannotBeLaunched) {
     rclcpp::NodeOptions opts;
     opts.parameter_overrides({rclcpp::Parameter("engine_path", "/nonexistent/engine")});
@@ -186,11 +189,14 @@ TEST_F(StockfishNodeTest, ConstructorThrowsWhenEngineCannotBeLaunched) {
 }
 
 TEST_F(StockfishNodeTest, HandshakeSendsUciThenOptionsThenIsReady) {
-    Config cfg; cfg.threads = 4; cfg.hashMb = 32; cfg.skillLevel = 5;
+    Config cfg;
+    cfg.threads = 4;
+    cfg.hashMb = 32;
+    cfg.skillLevel = 5;
     startFakeNode(0.0, 0.05, cfg);
     ASSERT_TRUE(waitForLogLine("isready"));
 
-    const auto lines = testutil::readLines(logPath_);
+    const std::vector<std::string> lines = testutil::readLines(logPath_);
     const std::vector<std::string> expected = {
         "uci",
         "setoption name Threads value 4",
@@ -204,20 +210,19 @@ TEST_F(StockfishNodeTest, HandshakeSendsUciThenOptionsThenIsReady) {
 }
 
 TEST_F(StockfishNodeTest, FenReceivedBeforeHandshakeFinishesIsSearchedAfterwards) {
-    startFakeNode(/*startupDelay=*/1.0);   // engine takes 1 s to answer `uci`
-    publishFen(kWhiteFen);                 // arrives while the node is still waiting for uciok
+    startFakeNode(1.0);
+    publishFen(kWhiteFen);
 
-    spinFor(200ms);
+    spinFor(std::chrono::milliseconds(200));
     EXPECT_FALSE(logContains(std::string("position fen ") + kWhiteFen)) << "search must wait for readyok";
     EXPECT_TRUE(moves_.empty());
 
-    ASSERT_TRUE(waitForMoves(1, 5000ms));
+    ASSERT_TRUE(waitForMoves(1, std::chrono::milliseconds(5000)));
     EXPECT_EQ(moves_[0], "e2e4");
 }
 
-// ---------------------------------------------------------------------------
-// Searching
-// ---------------------------------------------------------------------------
+//SEARCHING TESTS
+
 TEST_F(StockfishNodeTest, PublishesTheEnginesMoveForAFen) {
     startFakeNode();
     ASSERT_TRUE(waitForLogLine("isready"));
@@ -227,16 +232,17 @@ TEST_F(StockfishNodeTest, PublishesTheEnginesMoveForAFen) {
 }
 
 TEST_F(StockfishNodeTest, SendsPositionThenGoWithConfiguredMoveTime) {
-    Config cfg; cfg.moveTimeMs = 250;
+    Config cfg;
+    cfg.moveTimeMs = 250;
     startFakeNode(0.0, 0.05, cfg);
     ASSERT_TRUE(waitForLogLine("isready"));
     publishFen(kBlackFen);
     ASSERT_TRUE(waitForMoves(1));
-    EXPECT_EQ(moves_[0], "e7e5");   // side to move was black
+    EXPECT_EQ(moves_[0], "e7e5");
 
-    const auto lines = testutil::readLines(logPath_);
+    const std::vector<std::string> lines = testutil::readLines(logPath_);
     const std::string pos = std::string("position fen ") + kBlackFen;
-    const auto it = std::find(lines.begin(), lines.end(), pos);
+    const std::vector<std::string>::const_iterator it = std::find(lines.begin(), lines.end(), pos);
     ASSERT_NE(it, lines.end());
     ASSERT_NE(it + 1, lines.end());
     EXPECT_EQ(*(it + 1), "go movetime 250");
@@ -253,16 +259,16 @@ TEST_F(StockfishNodeTest, AnswersConsecutiveFensInOrder) {
 }
 
 TEST_F(StockfishNodeTest, NewFenDuringSearchStopsItAndOnlyTheNewAnswerIsPublished) {
-    startFakeNode(0.0, /*goDelay=*/0.4);
+    startFakeNode(0.0, 0.4);
     ASSERT_TRUE(waitForLogLine("isready"));
 
-    publishFen(kWhiteFen);                                   // would answer e2e4
-    ASSERT_TRUE(waitForLogLine("go movetime 100"));          // search for it is running
-    publishFen(kBlackFen);                                   // would answer e7e5
+    publishFen(kWhiteFen);
+    ASSERT_TRUE(waitForLogLine("go movetime 100"));
+    publishFen(kBlackFen);
 
-    ASSERT_TRUE(waitForMoves(1, 3000ms));
+    ASSERT_TRUE(waitForMoves(1, std::chrono::milliseconds(3000)));
     EXPECT_EQ(moves_[0], "e7e5");
-    spinFor(800ms);                                          // make sure the stale e2e4 never shows up
+    spinFor(std::chrono::milliseconds(800));
     EXPECT_EQ(moves_, (std::vector<std::string>{"e7e5"}));
     EXPECT_TRUE(logContains("stop"));
 }
@@ -273,11 +279,11 @@ TEST_F(StockfishNodeTest, OnlyTheNewestOfSeveralQueuedFensIsSearched) {
 
     publishFen(kWhiteFen);
     ASSERT_TRUE(waitForLogLine("go movetime 100"));
-    publishFen("8/8/8/8/8/8/8/K6k w - - 0 1");               // superseded before it is ever searched
+    publishFen("8/8/8/8/8/8/8/K6k w - - 0 1");
     publishFen(kBlackFen);
 
-    ASSERT_TRUE(waitForMoves(1, 3000ms));
-    spinFor(800ms);
+    ASSERT_TRUE(waitForMoves(1, std::chrono::milliseconds(3000)));
+    spinFor(std::chrono::milliseconds(800));
     EXPECT_EQ(moves_, (std::vector<std::string>{"e7e5"}));
     EXPECT_FALSE(logContains("position fen 8/8/8/8/8/8/8/K6k w - - 0 1"));
 }
@@ -286,47 +292,46 @@ TEST_F(StockfishNodeTest, NoLegalMoveIsNotPublishedAndNodeStaysUsable) {
     startFakeNode();
     ASSERT_TRUE(waitForLogLine("isready"));
 
-    publishFen("NONE w - - 0 1");                            // fake engine answers "bestmove (none)"
+    publishFen("NONE w - - 0 1");
     ASSERT_TRUE(waitForLogLine("go movetime 100"));
-    spinFor(400ms);
+    spinFor(std::chrono::milliseconds(400));
     EXPECT_TRUE(moves_.empty());
 
-    publishFen(kWhiteFen);                                   // the node must have gone back to idle
+    publishFen(kWhiteFen);
     ASSERT_TRUE(waitForMoves(1));
     EXPECT_EQ(moves_[0], "e2e4");
 }
 
-// ---------------------------------------------------------------------------
-// Bad input
-// ---------------------------------------------------------------------------
+//BAD INPUT TESTS
+
 TEST_F(StockfishNodeTest, MalformedFensAreIgnoredAndCannotInjectCommands) {
     startFakeNode();
     ASSERT_TRUE(waitForLogLine("isready"));
 
     publishFen("");
-    publishFen("8/8/8/8/8/8/8/K6k w - - 0 1\nquit");        // would shut the engine down if forwarded
+    publishFen("8/8/8/8/8/8/8/K6k w - - 0 1\nquit");
     publishFen("8/8/8/8/8/8/8/K6k w - - 0 1\r\nstop");
-    spinFor(400ms);
+    spinFor(std::chrono::milliseconds(400));
 
     EXPECT_TRUE(moves_.empty());
     EXPECT_FALSE(logContains("quit"));
     EXPECT_FALSE(logContains("stop"));
-    for (const auto& l : testutil::readLines(logPath_))
+    for(const std::string &l : testutil::readLines(logPath_)) {
         EXPECT_NE(l.rfind("position", 0), 0u) << "malformed FEN reached the engine: " << l;
+    }
 
-    publishFen(kWhiteFen);                                   // still works afterwards
+    publishFen(kWhiteFen);
     ASSERT_TRUE(waitForMoves(1));
     EXPECT_EQ(moves_[0], "e2e4");
 }
 
-// ---------------------------------------------------------------------------
-// Shutdown
-// ---------------------------------------------------------------------------
+//SHUTDOWN TESTS
+
 TEST_F(StockfishNodeTest, DestructorQuitsTheEngineAndReapsIt) {
     startFakeNode();
     ASSERT_TRUE(waitForLogLine("isready"));
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     stopNode();
     const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     EXPECT_LT(secs, 2.0);
@@ -338,12 +343,12 @@ TEST_F(StockfishNodeTest, DestructorQuitsTheEngineAndReapsIt) {
 }
 
 TEST_F(StockfishNodeTest, DestructorWorksWhileASearchIsRunning) {
-    startFakeNode(0.0, /*goDelay=*/1.0);
+    startFakeNode(0.0, 1.0);
     ASSERT_TRUE(waitForLogLine("isready"));
     publishFen(kWhiteFen);
     ASSERT_TRUE(waitForLogLine("go movetime 100"));
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     stopNode();
     const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     EXPECT_LT(secs, 3.0);
@@ -352,17 +357,20 @@ TEST_F(StockfishNodeTest, DestructorWorksWhileASearchIsRunning) {
     EXPECT_EQ(errno, ECHILD);
 }
 
-// ---------------------------------------------------------------------------
-// Real Stockfish (skipped if not installed; set STOCKFISH_PATH to point at it)
-// ---------------------------------------------------------------------------
+//REAL STOCKFISH TESTS
+
 TEST_F(StockfishNodeTest, RealStockfishFindsMateInOne) {
     const std::string sf = testutil::findStockfish();
-    if (sf.empty()) GTEST_SKIP() << "Stockfish not found (set STOCKFISH_PATH)";
+    if(sf.empty()) {
+        GTEST_SKIP() << "Stockfish not found (set STOCKFISH_PATH)";
+    }
 
-    Config cfg; cfg.enginePath = sf; cfg.moveTimeMs = 300;
+    Config cfg;
+    cfg.enginePath = sf;
+    cfg.moveTimeMs = 300;
     startNode(cfg);
-    spinFor(500ms);                                          // let the handshake finish
-    publishFen("6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1");      // back-rank mate: Ra8#
-    ASSERT_TRUE(waitForMoves(1, 8000ms));
+    spinFor(std::chrono::milliseconds(500));
+    publishFen("6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1");
+    ASSERT_TRUE(waitForMoves(1, std::chrono::milliseconds(8000)));
     EXPECT_EQ(moves_[0], "a1a8");
 }

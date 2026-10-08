@@ -45,7 +45,7 @@ install(TARGETS stockfish_node
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 
-  ament_add_gtest(test_uci tests/UCItest.cpp)
+  ament_add_gtest(test_uci tests/UCI_test.cpp)
   target_link_libraries(test_uci uci_engine)
 
   ament_add_gtest(test_engine_process tests/test_engine_process.cpp TIMEOUT 120)
