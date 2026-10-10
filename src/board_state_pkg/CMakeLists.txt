@@ -104,6 +104,27 @@ if(BUILD_TESTING)
     board_state_lib
   )
   
+  #diagnose
+  ament_add_gtest(
+    test_diagnose
+    tests/test_diagnose.cpp
+  )
+
+  target_link_libraries(
+    test_diagnose
+    board_state_lib
+  )
+
+  #infer
+  ament_add_gtest(
+    test_infer
+    tests/test_infer.cpp
+  )
+
+  target_link_libraries(
+    test_infer
+    board_state_lib
+  )
 
 endif()
 

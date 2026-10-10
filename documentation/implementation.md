@@ -13,7 +13,7 @@
 9. Complete the FEN → Stockfish → UCI move → BoardState loop. **Complete**
 10. Implement Occupancy as the board perception representation. **Complete**
 11. Implement board-state change inference from observed occupancy. **Complete**
-12. Implement move diagnosis and legality checking for inferred moves.
+12. Implement move diagnosis and legality checking for inferred moves. **Complete**
 13. Represent the resulting chess move for robot manipulation.
 14. Given `BoardState` + `Move`, create a robot manipulation plan.
 15. Simulate basic piece movement.
@@ -661,3 +661,154 @@ Inference:
 White Pawn e2 → e4
 
 The inference layer should identify what physical change most likely occurred. It should not replace BoardState or independently maintain a second chess position.
+
+Infer determines what physical board change most likely occurred by comparing the authoritative BoardState with an observed Occupancy.
+
+Its interface is:
+
+namespace Infer {
+
+struct Inference {
+    enum class Kind {
+        NoChange,
+        PieceLifted,
+        Candidate,
+        Anomaly
+    } kind = Kind::NoChange;
+
+    Move move{};
+    std::vector<Square> changed;
+};
+
+Inference inferMove(const BoardState& b, const Occupancy& o);
+
+}
+
+Inference Results
+
+Kind
+
+Meaning
+
+NoChange
+
+The observed occupancy matches the expected position.
+
+PieceLifted
+
+A piece appears to have been removed from its square but has not yet been placed.
+
+Candidate
+
+The occupancy changes are consistent with a candidate move.
+
+Anomaly
+
+The observed changes cannot be explained by a supported single-move pattern.
+
+move is meaningful when kind == Candidate. The changed vector records the squares that differ from the expected occupancy and can be used for highlighting or debugging.
+
+Inference Flow
+
+BoardState
+    │
+    ▼
+Expected Occupancy
+    │
+    │ compare
+    ▼
+Observed Occupancy
+    │
+    ▼
+Changed Squares
+    │
+    ▼
+Infer::inferMove()
+    │
+    ▼
+Inference
+
+Infer identifies a likely physical action; it does not establish that the move is legal under chess rules.
+
+This separation allows the system to recognize an attempted move even when the player moves a piece illegally.
+
+Diagnose
+
+Diagnose checks a candidate move against chess rules and returns a verdict, together with relevant squares that help explain the result.
+
+Its interface is:
+
+namespace Diagnose {
+
+enum class Verdict {
+    Legal,
+    NoPieceAtSource,
+    WrongTurn,
+    CapturesOwnPiece,
+    IllegalPieceGeometry,
+    Blocked,
+    LeavesKingInCheck,
+    CastlingNotAllowed,
+    AmbiguousPromotion
+};
+
+struct Diagnosis {
+    std::vector<Square> squares;
+    Verdict verdict = Verdict::Legal;
+};
+
+Diagnosis diagnoseMove(const BoardState& b, const Move& m);
+
+bool moveIsLegal(const BoardState& b, const Move& m);
+
+std::string describe(Verdict v);
+
+}
+
+Diagnosis Results
+
+Verdict
+
+Meaning
+
+Legal
+
+The move passes the implemented legality checks.
+
+NoPieceAtSource
+
+No piece occupies the source square.
+
+WrongTurn
+
+The piece does not belong to the side to move.
+
+CapturesOwnPiece
+
+The destination contains a piece of the moving side.
+
+IllegalPieceGeometry
+
+The move does not match the piece's movement rules.
+
+Blocked
+
+Another piece obstructs the move.
+
+LeavesKingInCheck
+
+The move leaves the moving side's king in check.
+
+CastlingNotAllowed
+
+The attempted castle violates castling requirements.
+
+AmbiguousPromotion
+
+A pawn reaches its promotion rank without a specified promotion piece.
+
+squares identifies relevant squares for the diagnosis, such as a blocking piece or a piece giving check.
+
+moveIsLegal() provides a boolean interface that returns whether diagnoseMove() produces Verdict::Legal.
+
+describe() converts a verdict into a human-readable description.

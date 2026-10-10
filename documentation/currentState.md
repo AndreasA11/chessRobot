@@ -1,5 +1,27 @@
 CURRENT STATE DOCUMENTATION 
 
+10/10/2026
+
+Diagnose and Infer have been implemented, this means that when we have board perception we will be able to convert the board perception given some infered move to change the internal board state. 
+
+Diagnose evaluates a candidate Move against chess rules and returns a Diagnosis.
+Its verdicts cover conditions such as an empty source square, the wrong side moving, capturing one's own piece, illegal movement geometry, blocked paths, leaving the king in check, invalid castling, and ambiguous promotion.
+moveIsLegal() provides a boolean legality check, while describe() converts a verdict into a human-readable description.
+
+Infer compares the current BoardState with an observed Occupancy and determines what physical board change most likely occurred.
+
+Its Inference result distinguishes between:
+
+      NoChange: the board matches the expected position.
+
+      PieceLifted: a piece has been lifted but not yet placed.
+
+      Candidate: the observed changes are consistent with a candidate move.
+
+      Anomaly: the observed changes do not match a supported single-move pattern.
+
+The result also records changed squares for debugging or visualization.
+
 10/6/2026
 
 Occupancy is being introduced as a simplified representation of the physical board.
