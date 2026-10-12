@@ -1,5 +1,16 @@
 CURRENT STATE DOCUMENTATION 
 
+10/12/2026
+
+The perception package is being started, we want to test the limits of what information we can get from perception as this might slightly change our implementation and overall impact of infer and occupancy. 
+
+We will most likely be testingthese repos: https://github.com/tbtiberiu/chess-position-detector or https://github.com/MichielCreemers/ChessVision,
+and using the version that works better for us. 
+
+The reason we are starting the perception package before fine tuning and finishing board state is because we might be able to tell individual pieces apart instead of just color difference. 
+
+
+
 10/10/2026
 
 Diagnose and Infer have been implemented, this means that when we have board perception we will be able to convert the board perception given some infered move to change the internal board state. 
