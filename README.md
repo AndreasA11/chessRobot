@@ -53,17 +53,34 @@ docker build -t chessrobot .
 #### 2. Start the Development Container (With Volume Mount)
 Run this command to start the container. It maps your current local directory into the container so code updates sync instantly:
 ```bash
-docker run -it --rm --name chessrobot-dev -v "$(pwd)":/chessRobot chessrobot
+docker run -it --name chessrobot-dev -v "$(pwd)":/chessRobot chessrobot
 ```
-*(Note: `--rm` ensures the container automatically cleans up when you exit, avoiding "name already in use" errors).*
 
-#### 3. Open an Additional Terminal Inside the Container
+
+#### 3. Stop Instantly (Every Day After)
+
+```bash
+docker stop chessrobot-dev
+```
+
+OR if you are inside the container: 
+
+```bash
+exit
+```
+
+#### 4. Start Instantly (Every Day After)
+```bash
+docker start -ai chessrobot-dev
+```
+
+#### 5. Open an Additional Terminal Inside the Container
 If you already have the container running and need a second terminal session:
 ```bash
 docker exec -it chessrobot-dev bash
 ```
 
-#### 4. Building inside the Container
+#### 6. Building inside the Container
 Because ROS2 Jazzy is automatically sourced in your `.bashrc`, you only need to run:
 ```bash
 colcon build
