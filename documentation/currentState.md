@@ -1,10 +1,17 @@
 CURRENT STATE DOCUMENTATION 
 
+
+10/13/2026
+
+update to using: https://github.com/espressovi/value-dataset (licensing reasons) and ease of use.
+will have to run using python 3.10 instead of current 3.12 version so we cannot run it with our ros2 stuff, we have to run it seperately and gain info that way
+initial local testing of that repo works, we will create a testing version in a different repo and merge later? Possibly just add it to environment in docker?
+
+
 10/12/2026
 
 The perception package is being started, we want to test the limits of what information we can get from perception as this might slightly change our implementation and overall impact of infer and occupancy. 
 
-We will most likely be testingthese repos: https://github.com/tbtiberiu/chess-position-detector or https://github.com/MichielCreemers/ChessVision,
 and using the version that works better for us. 
 
 The reason we are starting the perception package before fine tuning and finishing board state is because we might be able to tell individual pieces apart instead of just color difference. 

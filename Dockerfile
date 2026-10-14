@@ -1,7 +1,7 @@
 FROM ros:jazzy-ros-base
 
 # Set a working directory right away to keep things clean
-WORKDIR /chessRobot
+WORKDIR /ros2_workspace/chessRobot
 
 # Install system dependencies (Stockfish and any build essentials if needed)
 RUN apt-get update && apt-get install -y \
