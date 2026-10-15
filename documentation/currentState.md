@@ -1,9 +1,87 @@
 CURRENT STATE DOCUMENTATION 
 
+10/14/2025
+
+after further testing it is unreliable for both piece detection and color detection.
+We try this first: https://github.com/JSeytre/chessqueries/blob/main/README.md as they tested against chesscog finding better results.
+
+After testing both repos we found that while they both may have high percentage accuracies, it still was not fitting enough for our use case.
+The problem we face is that these models are trying to take in a single image and output a fen board state, however we dont just have one position, we know the previous position. 
+A model that would be more useful would be: 
+      Given previous fen position and curr image -> potential current fen position
+However these models don't take in previous fen position so we lose a lot of information. 
+
+Even more so the current fen position output is not necessarily needed, given our current implementation of occupancy and infer we just need the color and occupancy state of a square to determine the current position given the previous position. There are no repos out there that do this, probably because a software that determines the color occupancy of a square given an image is completely uselss (except in this case LOL)
+
+An interesting repo is https://github.com/Kyouku/chess-move-recognition, where they do look at single image recognition vs an over the board video. However these results are still probably not useful as they are still outputing FEN positions at a lower accuracy than needed.
+
+Where to go from here?:
+      1. Build a small custom three state square classifier, then let occupancy and infer determine actual fen position
+      2. take outputs from these models, maybe a combination of multiple of them? 
+      3. ask for human help (as stated by Manuela Veloso when talking about her CoBot project sometimes human help is needed) -> https://www.cs.cmu.edu/~coral/projects/cobot/humanrobot.html 
+      4. somehow figure out how to use our previous position knowledge to bias other models
+
+A pipeline that combines these ideas:
+
+      1. Custom three-state square classifier trained on our own
+      board and pieces. Produces per-square evidence; Occupancy + Infer decode the
+      position from it.
+      2. Fuse diverse evidence sources (classical differencing, custom classifier,
+      optionally pretrained models collapsed to empty/white/black). Only useful if
+      errors are independent, so validate each source's contribution. We do not currently know this.
+      3. Targeted human help (symbiotic autonomy, per Veloso's CoBot work): when the top
+      two candidate moves are too close, ask a one-tap question about the specific
+      ambiguity. Log corrections as new training data.
+      4. 
+            a) Use the known previous position as a prior: restrict to legal moves and score each against the evidence (Bayesian decoding in Infer). 
+            b) Later, try feeding the previous frame to the model so it predicts per-square changes.
+      - although 4b is unlikely to be implemented 
+
+      Metric: move-recognition accuracy over full games, plus rate of human
+      interventions, not per-square accuracy.
+
+Note: hardware is currently not the main focus of the project, we want to build a simulation ready version that can be transferable to hardware when/if necessary
+
+so ideas like:
+
+      Physical setup is a design variable, not a constraint. Since the ML side is
+      the limiting factor, we will engineer the environment to simplify perception:
+      - Rigid overhead camera, manual exposure/focus/white balance, corner fiducials
+      for automatic calibration.
+      - Diffuse, enclosed, constant lighting; matte board and pieces.
+      - High contrast between pieces and squares; consider colored piece tops.
+      - Arm parks out of frame before capture; settle detection for human moves.
+      - Optional: ID markers on piece tops (resolves promotions).
+      Decision gate: if move accuracy over full games is below target after the rig
+      is built, move to per-square sensors (Hall-effect/reed) or a hybrid.
+
+are not currently being considered.
+
+so ideal implementation path
+
+A. Decoding (Infer, Bayesian legal-move scoring): restrict to legal moves plus a
+   "no move" hypothesis, score each against per-square evidence, commit only above
+   a margin, flag unspecified promotions. Validated against a synthetic noise model
+   to set the per-square accuracy target for perception.
+B. Custom three-state (empty/white/black) square classifier trained on rendered
+   data from the simulated camera, auto-labeled from PGN games, with domain
+   randomization. Outputs soft probabilities; Occupancy + Infer decode the position.
+   Evaluated on held-out games/conditions by move-recognition accuracy.
+C. Targeted human help (symbiotic autonomy, per Veloso's CoBot work): when the top
+   two candidates are too close, ask a one-tap question about the specific
+   ambiguity (simulated oracle). Report accuracy vs. interventions per game; log
+   corrections as new training data.
+
+Fallback (only if the above misses the accuracy/intervention target):
+- Fuse additional evidence sources (classical differencing; pretrained models
+  collapsed to empty/white/black), kept only if an ablation shows a gain.
+
+Deferred: feeding the previous confirmed frame to the model (per-square change
+prediction).
 
 10/13/2026
 
-update to using: https://github.com/espressovi/value-dataset (licensing reasons) and ease of use.
+update to using: https://github.com/georg-wolflein/chesscog (licensing reasons) and ease of use.
 will have to run using python 3.10 instead of current 3.12 version so we cannot run it with our ros2 stuff, we have to run it seperately and gain info that way
 initial local testing of that repo works, we will create a testing version in a different repo and merge later? Possibly just add it to environment in docker?
 

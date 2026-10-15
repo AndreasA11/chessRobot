@@ -32,6 +32,20 @@ BoardState         ChessMove       Move Piece
    * Initially use a simulated robot.
    * Eventually support physical robot hardware.
 
+
+## Documentation
+
+commands.md: contains often run commands that don't have to be retyped/found over and over again.
+
+currentOverview.md is a brief overview of the project and its current state.
+
+currentState.md is a log of the currentState of the project each big update.
+
+implementation.md is a log of implementation summaries of each new update added.
+
+
+
+
 ## Current Setup
 
 Development uses:
