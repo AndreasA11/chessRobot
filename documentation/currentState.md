@@ -3,9 +3,8 @@ CURRENT STATE DOCUMENTATION
 10/14/2025
 
 after further testing it is unreliable for both piece detection and color detection.
-We try this first: https://github.com/JSeytre/chessqueries/blob/main/README.md as they tested against chesscog finding better results.
 
-After testing both repos we found that while they both may have high percentage accuracies, it still was not fitting enough for our use case.
+We found that while they both may have high percentage accuracies, it still was not fitting enough for our use case.
 The problem we face is that these models are trying to take in a single image and output a fen board state, however we dont just have one position, we know the previous position. 
 A model that would be more useful would be: 
       Given previous fen position and curr image -> potential current fen position

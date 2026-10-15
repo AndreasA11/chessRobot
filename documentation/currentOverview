@@ -41,11 +41,11 @@ The architecture deliberately separates the complete chess position (BoardState)
 - **Keep perception deliberately simple.** The classifier reports per-square occupancy and color, not a full FEN or exact piece identity. The known BoardState supplies missing chess context.
 - **Use prior state and chess rules.** Infer likely moves from the difference between expected and observed occupancy, constrain candidates using legality, and commit only when confidence is sufficient.
 - **Keep modules decoupled.** BoardState, Occupancy, Infer, Diagnose, UCI/process handling, and robot manipulation have distinct responsibilities. ROS 2 is the middleware; ROS node boundaries currently use strings, while UCI remains internal to the Stockfish interface.
-- **Perception dependency decision.** The project has moved to https://github.com/JSeytre/chessqueries for further evalutaion as it gave the best results from initial testing
+- **Perception dependency decision.** The project has moved to https://github.com/georg-wolflein/chesscog for further evalutaion as it gave the best results from initial testing
 ## Next steps
 
 1. Finish and validate configurable Stockfish strength/skill settings.
-2. Establish a perception test pipeline and benchmark the current chessqueries option against the project’s move-recognition requirements.
+2. Establish a perception test pipeline and benchmark the current chesscog option against the project’s move-recognition requirements.
 3. Implement and evaluate the custom three-state classifier and evidence-based/legal-move inference.
 4. Add targeted human confirmation if ambiguity remains.
 5. Continue into move-to-manipulation planning, basic movement simulation, captures/special moves, visualization, and eventually realistic simulation and hardware.
