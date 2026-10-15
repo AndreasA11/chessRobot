@@ -1,5 +1,11 @@
 CURRENT STATE DOCUMENTATION 
 
+10/15/2026
+
+
+
+
+
 10/14/2025
 
 after further testing it is unreliable for both piece detection and color detection.

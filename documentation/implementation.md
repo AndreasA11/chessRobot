@@ -812,3 +812,43 @@ squares identifies relevant squares for the diagnosis, such as a blocking piece 
 moveIsLegal() provides a boolean interface that returns whether diagnoseMove() produces Verdict::Legal.
 
 describe() converts a verdict into a human-readable description.
+
+
+
+
+SoftObserve Decoding (Part A of implementation path from yesterday) use cases:
+      Example 1: One stray square kills a good frame
+
+      The human plays Nf3. After the hand leaves, the model outputs:
+
+      Square	P(empty)	P(white)	P(black)
+      g1	0.97	0.02	0.01
+      f3	0.02	0.96	0.02
+      a6	0.46	0.02	0.52
+
+      a6 was empty all along. The model has a slight glare problem there and leans black, 52% to 46%.
+
+      Hard-label path: argmax says a6 is black. changed is now {g1, f3, a6}, and a6 is a black piece that appeared. That sets wrongColor, so inferMove returns Anomaly. Without SoftObs, you either report an error to the player (“that’s not a legal move”), which blames them for something they didn’t do, or you throw the frame away.
+
+      Soft path: the scorer runs over legal moves. Nf3 expects g1 empty and f3 white. Its delta score on those two squares is strongly positive. The a6 squares don’t enter the comparison at all, because no legal white move changes a6, so every candidate expects a6 unchanged and scores the same there. Nf3 wins by a wide margin and you commit.
+
+      The 52% black on a6 was real noise, but it was irrelevant to the decision, and SoftObs is what lets the decoder ignore it. This is the 0.98^64 problem in concrete form: the hard path needs all 64 squares right, while the soft path needs only the squares that distinguish the candidates.
+
+      Example 2: A capture where the fast path commits the wrong move
+
+      White has a knight on e5. Black has pawns on d7 and f7. Black’s d7 pawn captures nothing here, but suppose the black bishop on c8 and pawn on d7 both have a legal capture-like footprint on e6... let me use a cleaner setup.
+
+      Black to move. A black pawn on d5 can capture a white knight on e4 (dxe4), and a black bishop on g6 can also capture it (Bxe4). Both end with a black piece on e4 and e4’s previous white piece gone, so the destination footprint is identical. They differ only in which origin square emptied: d5 or g6.
+
+      After the hand leaves:
+
+      Square	P(empty)	P(black)
+      e4	0.01	0.97 (flipped from white)
+      d5	0.55	0.45
+      g6	0.40	0.60
+
+      The model is unsure which origin square emptied. Maybe the piece’s shadow lingers on both.
+
+      Hard-label path: argmax says d5 is empty and g6 is black. The diff shows a black piece left d5 and e4 flipped to black, which is a clean capture pattern. inferMove returns Candidate dxe4 with no hint of doubt, you commit, and if the bishop actually moved, BoardState now has the wrong piece on e4 and a ghost bishop still on g6. Every later move is evaluated against a corrupted position, and nothing downstream flags it.
+
+      Soft path: both captures score about equally on d5 and g6, because the evidence is 55/45 and 40/60. The margin test fails and the result is Ambiguous between dxe4 and Bxe4. The system asks, “Did the pawn or the bishop capture?” The answer commits the right move and gets logged as a training label for exactly this kind of shadow-on-adjacent-squares failure.
