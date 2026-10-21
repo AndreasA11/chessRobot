@@ -14,14 +14,15 @@
 10. Implement Occupancy as the board perception representation. **Complete**
 11. Implement board-state change inference from observed occupancy. **Complete**
 12. Implement move diagnosis and legality checking for inferred moves. **Complete**
-13. Represent the resulting chess move for robot manipulation.
-14. Given `BoardState` + `Move`, create a robot manipulation plan.
-15. Simulate basic piece movement.
-16. Add/verify physical handling of captures and special moves.
-17. Add board/robot visualization.
-18. Later add camera-based board perception.
-19. Later add a more realistic robot simulation and motion planning.
-20. Eventually connect the robot controller to physical hardware.
+13. Implement soft observation and decoder to distinguish if a move happened from a camera frame. **Complete**
+14. Represent the resulting chess move for robot manipulation.
+15. Given `BoardState` + `Move`, create a robot manipulation plan.
+16. Simulate basic piece movement.
+17. Add/verify physical handling of captures and special moves.
+18. Add board/robot visualization.
+19. Later add camera-based board perception.
+20. Later add a more realistic robot simulation and motion planning.
+21. Eventually connect the robot controller to physical hardware.
 
 
 ---

@@ -1,12 +1,22 @@
 CURRENT STATE DOCUMENTATION 
 
-10/15/2026
+10/20/2026
 
+SoftObs and Decode have been implemented and initially tested.
 
+SoftObs just gives us probabilites of what each square has out of {Empty, White, Black} for some given frame from the camera. The Decode class takes in some softobs probabilities and outputs some state so that boardState knows what to do with some given information.     
+        Confident,           // one move clearly explains the evidence
+        Ambiguous,           // top two moves too close; ask for help / re-observe
+        NoChange,            // evidence does not favor any move over "nothing happened"
+        NoLegalExplanation,  // some evidence of change, but no legal move explains it
+        Unusable             // frame flagged unusable (hand, motion, arm); not scored
 
+Where the pipeline is essentially: 
+    SoftObs -> MoveDecoder (uses diagnoseMove for candidates) -> Decoding
+    -> Arbiter (retry/ask/blame policy) -> Action
+    -> committed move -> BoardState::applyMove
 
-
-10/14/2025
+10/14/2026
 
 after further testing it is unreliable for both piece detection and color detection.
 

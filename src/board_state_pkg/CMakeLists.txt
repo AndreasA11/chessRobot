@@ -16,6 +16,7 @@ add_library(board_state_lib
   src/BoardState.cpp
   src/Diagnose.cpp
   src/Infer.cpp
+  src/Decode.cpp
 )
 
 target_include_directories(board_state_lib PUBLIC
@@ -123,6 +124,28 @@ if(BUILD_TESTING)
 
   target_link_libraries(
     test_infer
+    board_state_lib
+  )
+
+  #softobs
+  ament_add_gtest(
+    test_softobs
+    tests/test_softobs.cpp
+  )
+
+  target_link_libraries(
+    test_softobs
+    board_state_lib
+  )
+
+  #decode
+  ament_add_gtest(
+    test_decode
+    tests/test_decode.cpp
+  )
+
+  target_link_libraries(
+    test_decode
     board_state_lib
   )
 
