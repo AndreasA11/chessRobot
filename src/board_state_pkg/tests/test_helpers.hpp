@@ -30,7 +30,7 @@ inline bool sameMove(const Move& a, const Move& b) {
 
 // ADAPT THIS ONE FUNCTION to however BoardState is built from a FEN string.
 inline BoardState boardFromFen(const std::string& fen) {
-    return BoardState::fromFen(fen);
+    return FEN::fromFEN(fen);
 }
 
 // Hard observation of a position, wrapped as soft evidence.
