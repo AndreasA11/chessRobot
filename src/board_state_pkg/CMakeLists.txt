@@ -149,6 +149,17 @@ if(BUILD_TESTING)
     board_state_lib
   )
 
+  #legal moves
+  ament_add_gtest(
+    test_legal_moves
+    tests/test_legal_moves.cpp
+  )
+
+  target_link_libraries(
+    test_legal_moves
+    board_state_lib
+  )
+
 endif()
 
 # Install normal executable

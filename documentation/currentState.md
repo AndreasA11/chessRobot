@@ -1,5 +1,10 @@
 CURRENT STATE DOCUMENTATION 
 
+10/21/2026
+
+Added small compatability changes between diagnose and decode.
+This was done by adding a legalMoves which builds on diagnose. This gets every legal move for a given side to play and some board state.
+
 10/20/2026
 
 SoftObs and Decode have been implemented and initially tested.

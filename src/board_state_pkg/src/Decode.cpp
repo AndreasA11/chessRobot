@@ -8,13 +8,11 @@
 #include <limits>
 
 
-
 void MoveDecoder::reset(const BoardState& b) {
     cands_.clear();
     frames_ = 0;
 
-    const Color mover = b.sideToMove();
-    const Cell mine = (mover == Color::White) ? Cell::White : Cell::Black;
+    const Cell mine = (b.sideToMove() == Color::White) ? Cell::White : Cell::Black;
     const Occupancy before(b);
 
     auto addDelta = [&](Candidate& c, Square s, Cell after) {
@@ -24,57 +22,30 @@ void MoveDecoder::reset(const BoardState& b) {
         }
     };
 
-    for(int sr = 0; sr < 8; ++sr) {
-        for(int sf = 0; sf < 8; ++sf) {
-            const Square from{sf, sr};
-            const Piece p = b.at(from);
-            // Prefilter: only the side to move's pieces can start a legal move.
-            if(p == Piece::Empty || BoardState::colorOf(p) != mover) {
-                continue;
-            }
-            const char type = BoardState::typeOf(p);
+    for(const Diagnose::LegalMove& lm : Diagnose::legalMoves(b)) {
+        const Move& m = lm.move;
+        const char type = BoardState::typeOf(b.at(m.from));
 
-            for(int dr = 0; dr < 8; ++dr) {
-                for(int df = 0; df < 8; ++df) {
-                    const Square to{df, dr};
-                    if(from == to) {
-                        continue;
-                    }
+        Candidate c;
+        c.move = m;
+        c.promotionUnspecified = lm.promotionUnspecified;
 
-                    Move m;
-                    m.from = from;
-                    m.to = to;
-                    m.promotion = Piece::Empty;
+        // Footprint: the squares whose occupancy/color changes.
+        addDelta(c, m.from, Cell::Empty);
+        addDelta(c, m.to, mine);  // covers plain moves and captures (color flip)
 
-                    const Diagnose::Diagnosis d = Diagnose::diagnoseMove(b, m);
-                    const bool promo = (d.verdict == Diagnose::Verdict::AmbiguousPromotion);
-                    if(d.verdict != Diagnose::Verdict::Legal && !promo) {
-                        continue;
-                    }
-
-                    Candidate c;
-                    c.move = m;
-                    c.promotionUnspecified = promo;
-
-                    // Footprint: the squares whose occupancy/color changes.
-                    addDelta(c, from, Cell::Empty);
-                    addDelta(c, to, mine);  // covers plain moves and captures (color flip)
-
-                    const int fileDiff = to.file - from.file;
-                    if(type == 'K' && std::abs(fileDiff) == 2) {
-                        const bool kingSide = fileDiff > 0;
-                        addDelta(c, Square{kingSide ? 7 : 0, from.rank}, Cell::Empty);  // rook leaves
-                        addDelta(c, Square{kingSide ? 5 : 3, from.rank}, mine);         // rook arrives
-                    }
-                    if(type == 'P' && fileDiff != 0 && b.at(to) == Piece::Empty) {
-                        // En passant: the captured pawn sits beside the origin.
-                        addDelta(c, Square{to.file, from.rank}, Cell::Empty);
-                    }
-
-                    cands_.push_back(std::move(c));
-                }
-            }
+        const int fileDiff = m.to.file - m.from.file;
+        if(type == 'K' && std::abs(fileDiff) == 2) {
+            const bool kingSide = fileDiff > 0;
+            addDelta(c, Square{kingSide ? 7 : 0, m.from.rank}, Cell::Empty);  // rook leaves
+            addDelta(c, Square{kingSide ? 5 : 3, m.from.rank}, mine);         // rook arrives
         }
+        if(type == 'P' && fileDiff != 0 && BoardState::isEmpty(b.at(m.to))) {
+            // En passant: the captured pawn sits beside the origin.
+            addDelta(c, Square{m.to.file, m.from.rank}, Cell::Empty);
+        }
+
+        cands_.push_back(std::move(c));
     }
 }
 

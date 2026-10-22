@@ -255,23 +255,37 @@ Diagnosis diagnoseMove(const BoardState &b, const Move &m) {
         return d;
     }
 
+    //  1. King safety now runs BEFORE the "promotion needs a piece" verdict, so a
+    //     promotion that leaves your king in check is reported as LeavesKingInCheck
+    //     instead of AmbiguousPromotion.
+    //  2. An unspecified promotion is tested with a placeholder queen. Any promoted
+    //     piece blocks the same lines, so own-king safety is identical, and this
+    //     avoids depending on how applyMove treats promotion == Empty.
+ 
     const int lastRank = (mover == Color::White) ? 7 : 0;
     const bool promotes = (type == 'P' && m.to.rank == lastRank);
-    if(promotes && m.promotion == Piece::Empty) {
-        return Fail(Verdict::AmbiguousPromotion, {m.to});
-    }
     if(!promotes && m.promotion != Piece::Empty) {
         return Fail(Verdict::IllegalPieceGeometry);
     }
-
+ 
+    Move tested = m;
+    if(promotes && tested.promotion == Piece::Empty) {
+        tested.promotion = BoardState::colorize(static_cast<Piece>('Q'), mover);
+    }
+ 
     BoardState after = b;
-    after.applyMove(m);
+    after.applyMove(tested);
     if(std::optional<Square> k = FindKing(after, mover)) {
         if(std::optional<Square> a = AttackerOf(after, *k, Opposite(mover))) {
             return Fail(Verdict::LeavesKingInCheck, {*k, *a});
         }
     }
-
+ 
+    // Only a fully legal promotion still needs the piece to be chosen
+    if(promotes && m.promotion == Piece::Empty) {
+        return Fail(Verdict::AmbiguousPromotion, {m.to});
+    }
+ 
     return Ok();
 }
 
@@ -288,6 +302,45 @@ std::string describe(Verdict v) {
         case Verdict::AmbiguousPromotion:   return "Pawn promotion needs a piece choice";
     }
     return "Unknown";
+}
+
+std::vector<LegalMove> legalMoves(const BoardState& b) {
+    std::vector<LegalMove> out;
+    const Color mover = b.sideToMove();
+ 
+    for(int sr = 0; sr < 8; ++sr) {
+        for(int sf = 0; sf < 8; ++sf) {
+            const Square from{sf, sr};
+            const Piece p = b.at(from);
+            // Prefilter: only the side to move's pieces can start a legal move.
+            // (Check Empty first: colorOf(Piece::Empty) reports Black.)
+            if(BoardState::isEmpty(p) || BoardState::colorOf(p) != mover) {
+                continue;
+            }
+ 
+            for(int dr = 0; dr < 8; ++dr) {
+                for(int df = 0; df < 8; ++df) {
+                    const Square to{df, dr};
+                    if(from == to) {
+                        continue;
+                    }
+ 
+                    Move m;
+                    m.from = from;
+                    m.to = to;
+                    m.promotion = Piece::Empty;
+ 
+                    const Diagnosis d = diagnoseMove(b, m);
+                    if(d.verdict == Verdict::Legal) {
+                        out.push_back({m, false});
+                    } else if(d.verdict == Verdict::AmbiguousPromotion) {
+                        out.push_back({m, true});
+                    }
+                }
+            }
+        }
+    }
+    return out;
 }
 
 } // namespace Diagnose

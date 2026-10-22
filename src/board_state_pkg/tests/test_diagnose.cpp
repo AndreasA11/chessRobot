@@ -322,3 +322,4 @@ TEST(DiagnosePerft, LegalMovesApplyAndRoundTrip) {
         }
     }
 }
+

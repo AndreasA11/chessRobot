@@ -20,6 +20,19 @@ enum class Verdict {
     AmbiguousPromotion
 };
 
+struct LegalMove {
+    Move move;
+    bool promotionUnspecified = false;  // pawn reaches the last rank; piece not chosen yet
+};
+
+// Every legal move for the side to move, built on diagnoseMove so there is a
+// single definition of legality. A promotion appears once (not four times),
+// with move.promotion left Empty and promotionUnspecified set.
+// An empty result means checkmate or stalemate.
+std::vector<LegalMove> legalMoves(const BoardState& b);
+
+
+
 struct Diagnosis {
     std::vector<Square> squares{}; // Blocker, checking piece, etc.
     Verdict verdict = Verdict::Legal;
