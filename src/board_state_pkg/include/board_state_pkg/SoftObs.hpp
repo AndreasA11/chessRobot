@@ -6,6 +6,8 @@
 
 #include <array>
 
+
+
 // Per-square probabilities over {Empty, White, Black} for one camera frame.
 // Layout matches BoardObservation.msg: row-major a1..h8, 3 values per square,
 //   index = (rank * 8 + file) * 3 + classIndex
@@ -30,6 +32,28 @@ struct SoftObs {
         p[i] = pEmpty;
         p[i + 1] = pWhite;
         p[i + 2] = pBlack;
+    }
+
+    // Argmax per square (ties favor Empty, then White). This is the hard view
+    // that Infer::inferMove sees; the probabilities stay available for scoring.
+    Occupancy hardLabels() const {
+        Occupancy o;
+        for(int r = 0; r < 8; ++r) {
+            for(int f = 0; f < 8; ++f) {
+                const Square s{f, r};
+                const float pe = prob(s, Cell::Empty);
+                const float pw = prob(s, Cell::White);
+                const float pb = prob(s, Cell::Black);
+                Cell c = Cell::Empty;
+                if(pw > pe && pw >= pb) {
+                    c = Cell::White;
+                } else if(pb > pe && pb > pw) {
+                    c = Cell::Black;
+                }
+                o.set(s, c);
+            }
+        }
+        return o;
     }
 
     // Wrap hard labels as soft evidence. Useful for tests and for the noise

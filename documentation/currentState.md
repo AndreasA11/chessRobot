@@ -1,5 +1,8 @@
 CURRENT STATE DOCUMENTATION 
 
+10/22/2-26
+
+
 10/21/2026
 
 Added small compatability changes between diagnose and decode.
