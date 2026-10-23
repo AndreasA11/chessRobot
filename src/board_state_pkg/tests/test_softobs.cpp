@@ -99,3 +99,28 @@ TEST(SoftObs, FromHardMatchesOccupancyOnEverySquare) {
         }
     }
 }
+
+TEST(SoftObs, HardLabelsRoundTripsFromHard) {
+    const BoardState b = boardFromFen(kStartFen);
+    const Occupancy occ(b);
+    EXPECT_TRUE(SoftObs::fromHard(occ).hardLabels() == occ);
+}
+
+TEST(SoftObs, HardLabelsTakesArgmaxPerSquare) {
+    SoftObs obs;  // all zeros -> every square Empty
+    obs.set(sq("e4"), 0.40f, 0.55f, 0.05f);
+    obs.set(sq("d5"), 0.10f, 0.20f, 0.70f);
+    obs.set(sq("a1"), 0.60f, 0.30f, 0.10f);
+
+    const Occupancy o = obs.hardLabels();
+    EXPECT_EQ(o.cellAt(sq("e4")), Cell::White);
+    EXPECT_EQ(o.cellAt(sq("d5")), Cell::Black);
+    EXPECT_EQ(o.cellAt(sq("a1")), Cell::Empty);
+    EXPECT_EQ(o.cellAt(sq("h8")), Cell::Empty);
+}
+
+TEST(SoftObs, HardLabelsTieFavorsEmpty) {
+    SoftObs obs;
+    obs.set(sq("e4"), 0.5f, 0.5f, 0.0f);
+    EXPECT_EQ(obs.hardLabels().cellAt(sq("e4")), Cell::Empty);
+}
