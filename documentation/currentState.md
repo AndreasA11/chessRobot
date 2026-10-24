@@ -1,7 +1,12 @@
 CURRENT STATE DOCUMENTATION 
 
-10/22/2-26
+10/23/2026
 
+MoveDecoder uses probabilities to compare legal candidate moves instead of requiring every square to be classified correctly. This is intended to tolerate irrelevant perception errors and avoid silently choosing between similarly plausible moves.
+
+When the decoder cannot explain an observation, Arbiter can use hard-label inference through Infer::inferMove() and validate the inferred move with Diagnose. It should report an illegal move only when the evidence supports that conclusion; otherwise, it asks the player to check the board.
+
+The current Arbiter uses configurable frame thresholds to balance reliability against response latency. Game-over handling still needs to be integrated into the caller.
 
 10/21/2026
 

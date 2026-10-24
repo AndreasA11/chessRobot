@@ -815,6 +815,45 @@ moveIsLegal() provides a boolean interface that returns whether diagnoseMove() p
 describe() converts a verdict into a human-readable description.
 
 
+Diagnose
+
+Diagnose evaluates whether a candidate move satisfies the implemented chess rules.
+
+Its main interface is:
+
+Diagnosis Diagnose::diagnoseMove(
+    const BoardState& b,
+    const Move& m
+);
+
+bool Diagnose::moveIsLegal(
+    const BoardState& b,
+    const Move& m
+);
+
+The Verdict enum includes:
+
+Legal
+
+NoPieceAtSource
+
+WrongTurn
+
+CapturesOwnPiece
+
+IllegalPieceGeometry
+
+Blocked
+
+LeavesKingInCheck
+
+CastlingNotAllowed
+
+AmbiguousPromotion
+
+Diagnosis also records relevant squares, and Diagnose::describe() converts a verdict into a human-readable description.
+
+Diagnosis is separate from perception. A physically recognizable attempted move may still be illegal
 
 
 SoftObserve Decoding (Part A of implementation path from yesterday) use cases:
@@ -853,3 +892,177 @@ SoftObserve Decoding (Part A of implementation path from yesterday) use cases:
       Hard-label path: argmax says d5 is empty and g6 is black. The diff shows a black piece left d5 and e4 flipped to black, which is a clean capture pattern. inferMove returns Candidate dxe4 with no hint of doubt, you commit, and if the bishop actually moved, BoardState now has the wrong piece on e4 and a ghost bishop still on g6. Every later move is evaluated against a corrupted position, and nothing downstream flags it.
 
       Soft path: both captures score about equally on d5 and g6, because the evidence is 55/45 and 40/60. The margin test fails and the result is Ambiguous between dxe4 and Bxe4. The system asks, “Did the pawn or the bishop capture?” The answer commits the right move and gets logged as a training label for exactly this kind of shadow-on-adjacent-squares failure.
+
+LegalMoves
+
+LegalMoves provides a shared function for enumerating the legal moves available from a position.
+
+Diagnose::legalMoves(board);
+
+Each result includes a move and a promotionUnspecified flag. A promotion is represented once rather than as four separate moves for queen, rook, bishop, and knight.
+
+An empty result indicates that no legal moves are available, which may mean checkmate or stalemate.
+
+LegalMoves is intended to provide a common source of legal candidates for both MoveDecoder and Arbiter, avoiding duplicated move enumeration.
+
+SoftObs
+
+SoftObs represents a probabilistic observation of the board.
+
+Instead of assigning exactly one label to each square, it stores probabilities for the square being empty, occupied by white, or occupied by black.
+
+For example:
+
+Square
+
+P(empty)
+
+P(white)
+
+P(black)
+
+g1
+
+0.97
+
+0.02
+
+0.01
+
+f3
+
+0.02
+
+0.96
+
+0.02
+
+a6
+
+0.46
+
+0.02
+
+0.52
+
+This representation preserves uncertainty from the perception model.
+
+A hard-label observation would classify a6 as black, even though the probabilities indicate that the prediction is uncertain. A decoder that uses only hard labels may reject the entire observation because of this unrelated error.
+
+With SoftObs, candidate moves can instead be compared using the probability evidence for the squares each move should change.
+
+The implementation also provides hard labels through hardLabels(). These are used by the Arbiter as a fallback when the probabilistic decoder cannot explain the observation.
+
+MoveDecoder
+
+MoveDecoder compares the observed probabilities against candidate legal moves.
+
+Its purpose is to determine which legal move best explains the observed change from the expected board state.
+
+The decoder uses LegalMoves to enumerate candidates and scores their expected occupancy changes against SoftObs.
+
+Rather than requiring every square to be classified correctly, the decoder can favor a move whose source and destination changes are strongly supported by the observations.
+
+Decoding Results
+
+The decoder returns a Decoding result representing one of the following outcomes:
+
+Result
+
+Meaning
+
+Unusable
+
+The observation cannot currently be used.
+
+NoChange
+
+The observation is consistent with the expected board.
+
+Confident
+
+One candidate move is sufficiently better supported than the alternatives.
+
+Ambiguous
+
+Multiple candidate moves remain plausible.
+
+NoLegalExplanation
+
+No legal move adequately explains the observation.
+
+The soft-scoring path is intended to reduce two failure modes:
+
+Rejecting a good frame because of an unrelated, misclassified square.
+
+Silently committing the wrong move when multiple legal moves have similar observation scores.
+
+When two candidate moves score too closely, the decoder reports ambiguity instead of choosing arbitrarily.
+
+Arbiter
+
+Arbiter consumes a Decoding result and decides what the system should do next.
+
+It is a pure-logic component: it receives the board, the decoding result, and the latest hard-label observation, then returns an action.
+
+Decoding d = decoder.observe(soft, usable);
+
+Action a = arbiter.step(
+    board,
+    d,
+    soft.hardLabels()
+);
+
+Decision Behavior
+
+Decoder result
+
+Arbiter behavior
+
+Unusable
+
+Wait for a usable observation; request a clearer view after repeated failures.
+
+NoChange
+
+Wait for the board to change.
+
+Confident
+
+Require repeated confirmation, then revalidate before committing.
+
+Ambiguous
+
+Continue observing, then ask the human to choose between candidates if ambiguity persists.
+
+NoLegalExplanation
+
+Continue observing, then use hard-label inference and diagnosis to distinguish an illegal move from a perception problem.
+
+The Arbiter can return actions such as:
+
+Commit
+
+Wait
+
+AskPromotion
+
+ReportIllegal
+
+AskCheckBoard
+
+Ambiguous results can also prompt the user to identify which candidate move occurred.
+
+The current default thresholds include two consecutive frames for confirming a confident move, five frames before asking about ambiguity, six frames before investigating a persistent lack of legal explanation, and thirty consecutive unusable frames before requesting a clearer view.
+
+These are initial tuning values, not yet validated performance settings.
+
+Avoiding Incorrect Blame
+
+Only ReportIllegal explicitly tells the player that an attempted move is illegal.
+
+If the perception evidence and hard-label fallback disagree, or the diagnosis does not reliably establish an illegal move, the Arbiter should request a board check instead.
+
+Each action is intended to be issued once per situation. After the move is committed or the human responds, the caller resets the Arbiter and decoder.
+
+Game-over handling is not yet integrated into this decision flow. The caller must check whether LegalMoves returns any moves before treating NoLegalExplanation as a perception failure.
