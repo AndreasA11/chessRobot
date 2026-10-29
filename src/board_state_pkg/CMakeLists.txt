@@ -17,6 +17,8 @@ add_library(board_state_lib
   src/Diagnose.cpp
   src/Infer.cpp
   src/Decode.cpp
+  src/Arbiter.cpp
+  
 )
 
 target_include_directories(board_state_lib PUBLIC
@@ -27,12 +29,6 @@ target_include_directories(board_state_lib PUBLIC
 add_library(board_state_node_lib
   src/BoardStateNode.cpp
 )
-
-# ament_target_dependencies(
-#   board_state_lib
-#   rclcpp
-#   std_msgs
-# )
 
 target_include_directories(board_state_node_lib PUBLIC
   include/board_state_pkg
@@ -157,6 +153,28 @@ if(BUILD_TESTING)
 
   target_link_libraries(
     test_legal_moves
+    board_state_lib
+  )
+
+  #arbiter
+  ament_add_gtest(
+    test_arbiter
+    tests/test_legal_moves.cpp
+  )
+
+  target_link_libraries(
+    test_arbiter
+    board_state_lib
+  )
+
+  #pipeline
+  ament_add_gtest(
+    test_pipeline
+    tests/test_board_state_pipeline.cpp
+  )
+
+  target_link_libraries(
+    test_pipeline
     board_state_lib
   )
 

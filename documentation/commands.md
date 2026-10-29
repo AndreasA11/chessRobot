@@ -8,6 +8,8 @@ colcon build --packages-select board_state_pkg
 colcon build --event-handlers console_direct+
 
 
+
+
 # Run all package tests
 colcon test
 
@@ -16,6 +18,9 @@ colcon test --event-handlers console_direct+
 
 # Show test results
 colcon test-result --verbose
+
+# Show lists of test run 
+colcon test-result --all
 
 # See what tests CMake registered
 cd build/board_state_pkg
