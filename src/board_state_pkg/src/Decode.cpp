@@ -8,12 +8,18 @@
 #include <limits>
 
 
+
 void MoveDecoder::reset(const BoardState& b) {
     cands_.clear();
     frames_ = 0;
 
     const Cell mine = (b.sideToMove() == Color::White) ? Cell::White : Cell::Black;
     const Occupancy before(b);
+
+    for(int i = 0; i < 64; ++i) {
+        was_[i] = before.cellAt(Square{i % 8, i / 8});
+        changeLR_[i] = {0.0, 0.0, 0.0};
+    }
 
     auto addDelta = [&](Candidate& c, Square s, Cell after) {
         const Cell was = before.cellAt(s);
@@ -53,6 +59,9 @@ void MoveDecoder::clearEvidence() {
     for(Candidate& c : cands_) {
         c.score = 0.0;
     }
+    for(auto& row : changeLR_) {
+        row = {0.0, 0.0, 0.0};
+    }
     frames_ = 0;
 }
 
@@ -76,6 +85,19 @@ Decoding MoveDecoder::observe(const SoftObs& obs, bool usable) {
             c.score += logp(d.sq, d.after) - logp(d.sq, d.was);
         }
     }
+
+    // Independently of any move: how strongly does each square look different
+    // from the committed position?
+    const Cell kCells[3] = {Cell::Empty, Cell::White, Cell::Black};
+    for(int i = 0; i < 64; ++i) {
+        const Square s{i % 8, i / 8};
+        const double lwas = logp(s, was_[i]);
+        for(Cell c : kCells) {
+            if(c != was_[i]) {
+                changeLR_[i][SoftObs::classIndex(c)] += logp(s, c) - lwas;
+            }
+        }
+    }
     ++frames_;
 
     return evaluate();
@@ -89,6 +111,22 @@ Decoding MoveDecoder::evaluate() const {
         out.kind = Decoding::Kind::NoLegalExplanation;
         return out;
     }
+
+    // Total evidence that squares differ from the committed position.
+    double unexplained = 0.0;
+    for(int i = 0; i < 64; ++i) {
+        const int wasIdx = SoftObs::classIndex(was_[i]);
+        double m = -std::numeric_limits<double>::infinity();
+        for(int k = 0; k < 3; ++k) {
+            if(k != wasIdx) {
+                m = std::max(m, changeLR_[i][k]);
+            }
+        }
+        if(m > 0.0) {
+            unexplained += m;
+        }
+    }
+    out.unexplainedChange = unexplained;
 
     const double negInf = -std::numeric_limits<double>::infinity();
     const Candidate* best = nullptr;
@@ -111,15 +149,16 @@ Decoding MoveDecoder::evaluate() const {
     }
     out.margin = second ? (best->score - second->score) : std::numeric_limits<double>::infinity();
 
-    // "No move" is the baseline hypothesis with score 0.
-    if(best->score <= 0.0) {
-        out.kind = Decoding::Kind::NoChange;
-    } else if(best->score < cfg_.minScore) {
+    if(best->score >= cfg_.minScore) {
+        // Some legal move explains a real change; is it clearly the best one?
+        out.kind = (out.margin >= cfg_.margin) ? Decoding::Kind::Confident
+                                               : Decoding::Kind::Ambiguous;
+    } else if(unexplained >= cfg_.minScore) {
+        // The board looks different from the committed position, but no legal
+        // move accounts for it.
         out.kind = Decoding::Kind::NoLegalExplanation;
-    } else if(out.margin < cfg_.margin) {
-        out.kind = Decoding::Kind::Ambiguous;
     } else {
-        out.kind = Decoding::Kind::Confident;
+        out.kind = Decoding::Kind::NoChange;
     }
     return out;
 }

@@ -1,9 +1,11 @@
+#include "Decode.hpp"
+#include "test_helpers.hpp"
+
 #include <gtest/gtest.h>
 
 #include <cmath>
 
-#include "Decode.hpp"
-#include "test_helpers.hpp"
+
 
 using namespace testutil;
 using Kind = Decoding::Kind;
@@ -343,4 +345,75 @@ TEST(MoveDecoderState, ResetOnNewPositionDecodesNextMove) {
         obsFromFen("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"));
     EXPECT_EQ(second.kind, Kind::Confident);
     EXPECT_TRUE(sameMove(second.best, mv("e7", "e5")));
+}
+
+// ---------------------------------------------------------------- unexplained change
+
+TEST(MoveDecoderUnexplained, LiftedPieceIsNoLegalExplanation) {
+    SoftObs obs = obsFromFen(kStartFen);
+    obs.set(sq("e2"), 0.99f, 0.005f, 0.005f);  // pawn lifted, not placed anywhere
+
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+    const Decoding d = dec.observe(obs);
+    EXPECT_EQ(d.kind, Kind::NoLegalExplanation);
+    EXPECT_GT(d.unexplainedChange, 3.0);
+}
+
+TEST(MoveDecoderUnexplained, MisplacedPieceIsNoLegalExplanation) {
+    // Knight shows up on g3: g1 is empty and g3 is white, but that is no legal move
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+    const Decoding d = dec.observe(
+        obsFromFen("rnbqkbnr/pppppppp/8/8/8/6N1/PPPPPPPP/RNBQKB1R b KQkq - 1 1"));
+    EXPECT_EQ(d.kind, Kind::NoLegalExplanation);
+    EXPECT_GT(d.unexplainedChange, 6.0);
+}
+
+TEST(MoveDecoderUnexplained, SmallNoiseOnIdleBoardIsNoChange) {
+    SoftObs obs = obsFromFen(kStartFen);
+    obs.set(sq("a6"), 0.46f, 0.02f, 0.52f);
+
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+    EXPECT_EQ(dec.observe(obs).kind, Kind::NoChange);
+}
+
+TEST(MoveDecoderUnexplained, ConfidentGlitchOnIdleBoardIsNoLegalExplanation) {
+    // A confident (not marginal) misread on an idle board is treated as "something
+    // looks different", which the Arbiter then handles patiently.
+    SoftObs obs = obsFromFen(kStartFen);
+    obs.set(sq("a6"), 0.0f, 0.0f, 1.0f);
+
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+    EXPECT_EQ(dec.observe(obs).kind, Kind::NoLegalExplanation);
+}
+
+TEST(MoveDecoderUnexplained, PieceLiftedThenPutBackReturnsToNoChange) {
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+
+    SoftObs lifted = obsFromFen(kStartFen);
+    lifted.set(sq("e2"), 0.99f, 0.005f, 0.005f);
+    EXPECT_EQ(dec.observe(lifted).kind, Kind::NoLegalExplanation);
+    EXPECT_EQ(dec.observe(lifted).kind, Kind::NoLegalExplanation);
+
+    const SoftObs original = obsFromFen(kStartFen);
+    Decoding d;
+    for(int i = 0; i < 3; ++i) {
+        d = dec.observe(original);
+    }
+    EXPECT_EQ(d.kind, Kind::NoChange);
+}
+
+TEST(MoveDecoderUnexplained, ClearEvidenceResetsUnexplainedChange) {
+    MoveDecoder dec;
+    dec.reset(boardFromFen(kStartFen));
+    SoftObs lifted = obsFromFen(kStartFen);
+    lifted.set(sq("e2"), 0.99f, 0.005f, 0.005f);
+    ASSERT_EQ(dec.observe(lifted).kind, Kind::NoLegalExplanation);
+
+    dec.clearEvidence();
+    EXPECT_EQ(dec.observe(obsFromFen(kStartFen)).kind, Kind::NoChange);
 }

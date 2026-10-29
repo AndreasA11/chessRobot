@@ -967,36 +967,25 @@ Decoding Results
 
 The decoder returns a Decoding result representing one of the following outcomes:
 
-Result
-
-Meaning
-
-Unusable
-
+Result Meaning Unusable
 The observation cannot currently be used.
 
 NoChange
-
 The observation is consistent with the expected board.
 
 Confident
-
 One candidate move is sufficiently better supported than the alternatives.
 
 Ambiguous
-
 Multiple candidate moves remain plausible.
 
 NoLegalExplanation
-
 No legal move adequately explains the observation.
 
 The soft-scoring path is intended to reduce two failure modes:
 
 Rejecting a good frame because of an unrelated, misclassified square.
-
 Silently committing the wrong move when multiple legal moves have similar observation scores.
-
 When two candidate moves score too closely, the decoder reports ambiguity instead of choosing arbitrarily.
 
 Arbiter
@@ -1019,25 +1008,13 @@ Decoder result
 
 Arbiter behavior
 
-Unusable
-
-Wait for a usable observation; request a clearer view after repeated failures.
-
-NoChange
-
-Wait for the board to change.
-
-Confident
-
-Require repeated confirmation, then revalidate before committing.
-
-Ambiguous
-
-Continue observing, then ask the human to choose between candidates if ambiguity persists.
-
-NoLegalExplanation
-
-Continue observing, then use hard-label inference and diagnosis to distinguish an illegal move from a perception problem.
+Decoder says	        Arbiter does
+Unusable	            Waits, and asks for a clear view after 30 straight blocked frames. It never touches the other counters.
+NoChange	            Waits. This is the normal state while the human thinks.
+Confident	            Requires the same move for 2 consecutive frames, then re-validates it with diagnoseMove and returns Commit, or AskPromotion if the piece is unspecified.
+Ambiguous	            Keeps observing, then asks “Did you play X or Y?” after 5 frames.
+NoLegalExplanation	    Assumes a perception error and keeps observing for 6 frames. After that it runs inferMove on the hard labels and passes the result to diagnoseMove. A recognizable but illegal move comes back as ReportIllegal with the Verdict text. 
+                        Anything else comes back as AskCheckBoard.
 
 The Arbiter can return actions such as:
 

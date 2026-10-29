@@ -1,5 +1,14 @@
 CURRENT STATE DOCUMENTATION 
 
+10/29/2026
+ 
+The entire boardState pipeline tests have been run and all pass. These test the entire flow of board_state_pkg from SoftObs to BoardState::applyMove.
+
+Feature to add for later* : Some ability to bypass softObs, Infer, Occupancy, Diagnose, Decode, Arbiter, and just give positions to boardState. This is probably going to be helpfulp for testing the other nodes, in addition I may be able to get a real robot that can move an arm however visual perception won't be connected to the actual robot, just movement of the arm. So I may want to have some way for the human to just insert the move played, similar to how both black and white players write down the move just played in classical chess. 
+I can still run a simulated visual board given these inputed moves though, however that will go inside of the perception package and not boardState.
+
+Next step will be to implement the perception package. 
+
 10/23/2026
 
 MoveDecoder uses probabilities to compare legal candidate moves instead of requiring every square to be classified correctly. This is intended to tolerate irrelevant perception errors and avoid silently choosing between similarly plausible moves.

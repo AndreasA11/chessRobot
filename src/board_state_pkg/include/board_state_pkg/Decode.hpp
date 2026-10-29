@@ -1,13 +1,11 @@
-#ifndef H_DECODER
-#define H_DECODER
+#pragma once
+
+#include <array>
+#include <vector>
 
 #include "BoardState.hpp"
 #include "Occupancy.hpp"
 #include "SoftObs.hpp"
-
-#include <vector>
-
-
 
 struct DecoderConfig {
     // Probabilities are clamped to at least this before taking logs, so one
@@ -15,7 +13,8 @@ struct DecoderConfig {
     // instead of dominating the whole score.
     double probFloor = 1e-3;
 
-    // Best move must beat the "no move" hypothesis (score 0) by this many nats.
+    // Evidence threshold (nats). A move must beat the "no move" hypothesis by this
+    // much to be proposed, and unexplained change must reach it to be reported.
     // 3.0 is roughly a 20:1 likelihood ratio.
     double minScore = 3.0;
 
@@ -27,8 +26,9 @@ struct Decoding {
     enum class Kind {
         Confident,           // one move clearly explains the evidence
         Ambiguous,           // top two moves too close; ask for help / re-observe
-        NoChange,            // evidence does not favor any move over "nothing happened"
-        NoLegalExplanation,  // some evidence of change, but no legal move explains it
+        NoChange,            // board looks like the committed position
+        NoLegalExplanation,  // the board looks different, but no legal move explains it
+                             // (piece lifted or misplaced, illegal move, or a misread)
         Unusable             // frame flagged unusable (hand, motion, arm); not scored
     };
 
@@ -38,6 +38,7 @@ struct Decoding {
     double bestScore = 0.0;
     double runnerUpScore = 0.0;
     double margin = 0.0;               // bestScore - runnerUpScore
+    double unexplainedChange = 0.0;    // total evidence (nats) that squares differ from the committed position
     bool promotionUnspecified = false; // best is a promotion; piece must be chosen
     int framesUsed = 0;
 };
@@ -81,7 +82,11 @@ private:
     DecoderConfig cfg_;
     std::vector<Candidate> cands_;
     int frames_ = 0;
+
+    // Committed-position cell per square (index = rank * 8 + file), and for each
+    // square the accumulated log-ratio of "this class" vs. "unchanged", per class.
+    // Used to tell "nothing changed" apart from "something changed that no legal
+    // move explains".
+    std::array<Cell, 64> was_{};
+    std::array<std::array<double, 3>, 64> changeLR_{};
 };
-
-
-#endif
