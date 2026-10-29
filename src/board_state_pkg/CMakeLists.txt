@@ -10,6 +10,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(board_observation_interface REQUIRED)
 
 # BoardState library
 add_library(board_state_lib
@@ -34,14 +35,13 @@ target_include_directories(board_state_node_lib PUBLIC
   include/board_state_pkg
 )
 
-ament_target_dependencies(
-  board_state_node_lib
+ament_target_dependencies(board_state_node_lib
   rclcpp
   std_msgs
+  board_observation_interface
 )
 
-target_link_libraries(
-  board_state_node_lib
+target_link_libraries(board_state_node_lib
   board_state_lib
 )
 
@@ -50,13 +50,11 @@ add_executable(board_state_node
   src/BoardStateNodeMain.cpp
 )
 
-target_link_libraries(
-  board_state_node
+target_link_libraries(board_state_node
   board_state_node_lib
 )
 
-ament_target_dependencies(
-  board_state_node
+ament_target_dependencies(board_state_node
   rclcpp
   std_msgs
 )
@@ -176,6 +174,23 @@ if(BUILD_TESTING)
   target_link_libraries(
     test_pipeline
     board_state_lib
+  )
+
+  ament_add_gtest(
+    test_board_state_node_perception
+    tests/test_board_state_node_perception.cpp
+    SKIP_LINKING_MAIN_LIBRARIES
+  )
+  
+  target_link_libraries(
+    test_board_state_node_perception 
+    board_state_node_lib
+  )
+  
+  ament_target_dependencies(test_board_state_node_perception 
+    rclcpp 
+    std_msgs 
+    board_observation_interface
   )
 
 endif()
