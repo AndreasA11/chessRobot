@@ -1090,7 +1090,7 @@ Each candidate contains a move footprint: the squares that would change if that 
 For every usable observation, the decoder adds the following score for each square in the candidate's footprint:
 
 ```math
-\Delta \text{score} = \log P(\text{after}) - \log\) P(\text{was})
+\Delta \text{score} = \log P(\text{after}) - \log P(\text{was})
 ```
 
 Therefore, the candidate's cumulative score is:
