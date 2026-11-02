@@ -1088,18 +1088,18 @@ Each candidate contains a move footprint: the squares that would change if that 
 - was: expected cell value before the move.
 - after: expected cell value after the move.
 For every usable observation, the decoder adds the following score for each square in the candidate's footprint:
-\[
+$$
 \Delta score =
 \log P(\text{after})-\log P(\text{was})
-\]
+$$
 
 Therefore, the candidate's cumulative score is:
-\[
+$$
 S(m)=\sum_{t=1}^{T}\sum_{d\in footprint(m)}
 \left[
 \log P_t(d.after)-\log P_t(d.was)
 \right]
-\]
+$$
 
 This is a log-likelihood ratio against the no-move hypothesis. A positive contribution means the observation supports the square's new value more than its original value. A negative contribution means it supports the original value.
 
@@ -1110,23 +1110,23 @@ The decoder accumulates these scores across frames rather than making a decision
 Separately from candidate scoring, the decoder tracks whether individual squares appear different from the committed board position.
 
 For every square and every possible cell value other than its original value, it accumulates:
-\[
+$$
 LR_{s,c} =
 \sum_{t=1}^{T}
 \left[
 \log P_t(c)-\log P_t(was_s)
 \right]
-\]
+$$
 
 For each square, it takes the strongest alternative value:
-\[
+$$
 M_s = \max_{c\ne was_s} LR_{s,c}
-\]
+$$
 
 Only positive evidence contributes to the total:
-\[
+$$
 U = \sum_{s=1}^{64}\max(0,M_s)
-\]
+$$
 
 This becomes unexplainedChange.
 
@@ -1136,9 +1136,9 @@ The distinction is important:
 This allows the decoder to distinguish an unchanged board from a changed board that cannot be explained by any legal move.
 3. Probability floor
 Before taking logarithms, probabilities are clamped:
-\[
+$$
 \log P(c) \rightarrow \log(\max(P(c),probFloor))
-\]
+$$
 
 This prevents zero probabilities from producing negative infinity and limiting the numerical behavior of the scoring system.
 
