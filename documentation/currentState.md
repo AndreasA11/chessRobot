@@ -1,5 +1,27 @@
 CURRENT STATE DOCUMENTATION 
 
+11/2/2026
+
+The perception plan has been layed out in implementation.md. Perception package will output the BoardObservation custom message using this pipeline to get there:  
+      Camera image -> board localization (top down) -> 64 square crops -> classifier -> calibrated probabilities -> settle/usable detections -> BoardObservationInterface
+
+We will follow these 5 phases: 
+      1. Fake perception node and noise sweep to find out how accurate perception must be, before training anything.
+      2. Simulation setup to have a camera that produces images of a chessboard with known ground truth.
+      3. Data engine, a reproducible, labeled dataset.
+      4. Classifier, a three-class square classifier with calibrated probabilities.
+      5. Perception node to get the runtime pipeline publishing BoardObservation. 
+      6. End-to-end evaluation to show show the whole system meets Targets
+            where targets are: 
+                  Silent wrong commits per 1000 moves target: 0
+                  Human Interventions per game(which-move, check-board, illegal report questions) Target 5
+                  Frame Yield: fraction of moves commited without any questions Target: 99/100
+                  Latency from piece placed to move commiuted Target: 3 seconds
+                  Per Square accuracy the classifier must reach Target: 75%
+                  This is a diagnostic not the goal, the decoder only needs the few squares that distinguish legal moves so the real metric is move recognition over full games
+
+
+
 10/29/2026
  
 The entire boardState pipeline tests have been run and all pass. These test the entire flow of board_state_pkg from SoftObs to BoardState::applyMove.
@@ -34,7 +56,7 @@ SoftObs just gives us probabilites of what each square has out of {Empty, White,
         Unusable             // frame flagged unusable (hand, motion, arm); not scored
 
 Where the pipeline is essentially: 
-    SoftObs -> MoveDecoder (uses diagnoseMove for candidates) -> Decoding
+    SoftObs -> MoveDecoder (uses diagnoseMove for candidates) 
     -> Arbiter (retry/ask/blame policy) -> Action
     -> committed move -> BoardState::applyMove
 
