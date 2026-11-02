@@ -1088,45 +1088,41 @@ Each candidate contains a move footprint: the squares that would change if that 
 - was: expected cell value before the move.
 - after: expected cell value after the move.
 For every usable observation, the decoder adds the following score for each square in the candidate's footprint:
-$$
-\Delta score =
-\log P(\text{after})-\log P(\text{was})
-$$
+
+```math
+\(\Delta \text{score} = \log P(\text{after}) - \log\) P\((\text{was}) \%\%\)MAGIT_PARSER_PROTECT%%```
 
 Therefore, the candidate's cumulative score is:
-$$
-S(m)=\sum_{t=1}^{T}\sum_{d\in footprint(m)}
-\left[
-\log P_t(d.after)-\log P_t(d.was)
-\right]
-$$
+
+```math
+S(m) \(= \sum_{t=1}^{T} \sum_{d \in \text{footprint}(m)} \left[ \log P_t(d.\text{after}) - \log P_t(d.\text{was}) \right] \%\%\)MAGIT_PARSER_PROTECT%%```
 
 This is a log-likelihood ratio against the no-move hypothesis. A positive contribution means the observation supports the square's new value more than its original value. A negative contribution means it supports the original value.
 
 Squares not touched by a candidate are omitted because their evidence is identical under that candidate and the no-move hypothesis, so they cancel out.
 
 The decoder accumulates these scores across frames rather than making a decision from a single image.
-2. Unexplained-change scoring
+
+### 2. Unexplained-change scoring
 Separately from candidate scoring, the decoder tracks whether individual squares appear different from the committed board position.
 
 For every square and every possible cell value other than its original value, it accumulates:
-$$
-LR_{s,c} =
-\sum_{t=1}^{T}
-\left[
-\log P_t(c)-\log P_t(was_s)
-\right]
-$$
+
+```math
+LR_{s,c} \(= \sum_{t=1}^{T} \left[ \log P_t(c) - \log P_t(\text{was}_s) \right] \%\%\)MAGIT_PARSER_PROTECT%%```
 
 For each square, it takes the strongest alternative value:
-$$
-M_s = \max_{c\ne was_s} LR_{s,c}
-$$
+
+```math
+M_s \(= \max_\){c \(\ne \text{was}_s\)} LR_{s,c}
+```
 
 Only positive evidence contributes to the total:
-$$
-U = \sum_{s=1}^{64}\max(0,M_s)
-$$
+
+```math
+U \(= \sum_{s=1}^{64} \max\)(0, M_s)
+```
+
 
 This becomes unexplainedChange.
 
