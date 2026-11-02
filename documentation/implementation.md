@@ -1081,29 +1081,6 @@ The result contains the best and runner-up moves, their scores, their margin, th
 
 ## 6.6 Evaluation abd Observation
 
-The private `evaluate()` function evaluates the accumulated evidence and produces the current `Decoding` result.
-
-The exact scoring and classification logic is implemented inside the decoder. The configuration parameters define the probability floor, minimum evidence threshold, and candidate separation required for a confident result.
-
-The decoder's central responsibility is to distinguish:
-
-- No meaningful board change.
-- A board change explained by one legal move.
-- A board change explained by multiple similarly plausible moves.
-- A board change that cannot be explained by a legal move.
-
-It does not decide what the system should say or do. That is the responsibility of `Arbiter`.
-
----
-
-# 7. Arbiter
-
-`Arbiter` is the policy layer between move decoding and application behavior.
-
-It consumes the decoder's result and determines what the system should do next.
-
-It is a pure-logic component: it does not depend on ROS 2 or camera images. It receives the current board, the latest decoding result, and the hard-label view of the same observation.
-
 MoveDecoder scoring implementation
 1. Candidate move scoring
 Each candidate contains a move footprint: the squares that would change if that move were made. Each Delta stores:
@@ -1111,14 +1088,18 @@ Each candidate contains a move footprint: the squares that would change if that 
 - was: expected cell value before the move.
 - after: expected cell value after the move.
 For every usable observation, the decoder adds the following score for each square in the candidate's footprint:
-$$
-\Delta score = \log P(\text{after})-\log P(\text{was})
-$$
+\[
+\Delta score =
+\log P(\text{after})-\log P(\text{was})
+\]
 
 Therefore, the candidate's cumulative score is:
-$$
-S(m)=\sum_{t=1}^{T}\sum_{d\in footprint(m)} \left[\log P_t(d.after)-\log P_t(d.was)\right]
-$$
+\[
+S(m)=\sum_{t=1}^{T}\sum_{d\in footprint(m)}
+\left[
+\log P_t(d.after)-\log P_t(d.was)
+\right]
+\]
 
 This is a log-likelihood ratio against the no-move hypothesis. A positive contribution means the observation supports the square's new value more than its original value. A negative contribution means it supports the original value.
 
@@ -1129,20 +1110,23 @@ The decoder accumulates these scores across frames rather than making a decision
 Separately from candidate scoring, the decoder tracks whether individual squares appear different from the committed board position.
 
 For every square and every possible cell value other than its original value, it accumulates:
-$$
-LR_{s,c} = \sum_{t=1}^{T} \left[ \log P_t(c) - \log P_t(\text{was}_s) \right]
-$$
-
+\[
+LR_{s,c} =
+\sum_{t=1}^{T}
+\left[
+\log P_t(c)-\log P_t(was_s)
+\right]
+\]
 
 For each square, it takes the strongest alternative value:
-$$
+\[
 M_s = \max_{c\ne was_s} LR_{s,c}
-$$
+\]
 
 Only positive evidence contributes to the total:
-$$
+\[
 U = \sum_{s=1}^{64}\max(0,M_s)
-$$
+\]
 
 This becomes unexplainedChange.
 
@@ -1152,9 +1136,9 @@ The distinction is important:
 This allows the decoder to distinguish an unchanged board from a changed board that cannot be explained by any legal move.
 3. Probability floor
 Before taking logarithms, probabilities are clamped:
-$$
+\[
 \log P(c) \rightarrow \log(\max(P(c),probFloor))
-$$
+\]
 
 This prevents zero probabilities from producing negative infinity and limiting the numerical behavior of the scoring system.
 
@@ -1192,6 +1176,29 @@ Important implementation detail
 The current implementation accumulates evidence directly into Candidate::score and changeLR_. Consequently, each call to observe() contributes another frame's evidence. evaluate() itself does not modify the accumulated scores; it only reads them and produces a Decoding.
 
 One consideration for later testing: evidence accumulation assumes observations are sufficiently independent. Consecutive camera frames can be highly correlated, so treating every frame as independent may make confidence thresholds trigger too quickly. This is something to evaluate with the noise simulator rather than assume away.
+
+The private `evaluate()` function evaluates the accumulated evidence and produces the current `Decoding` result.
+
+The exact scoring and classification logic is implemented inside the decoder. The configuration parameters define the probability floor, minimum evidence threshold, and candidate separation required for a confident result.
+
+The decoder's central responsibility is to distinguish:
+
+- No meaningful board change.
+- A board change explained by one legal move.
+- A board change explained by multiple similarly plausible moves.
+- A board change that cannot be explained by a legal move.
+
+It does not decide what the system should say or do. That is the responsibility of `Arbiter`.
+
+---
+
+# 7. Arbiter
+
+`Arbiter` is the policy layer between move decoding and application behavior.
+
+It consumes the decoder's result and determines what the system should do next.
+
+It is a pure-logic component: it does not depend on ROS 2 or camera images. It receives the current board, the latest decoding result, and the hard-label view of the same observation.
 
 ```cpp
 Action step(
