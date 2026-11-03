@@ -8,8 +8,6 @@ colcon build --packages-select board_state_pkg
 colcon build --event-handlers console_direct+
 
 
-
-
 # Run all package tests
 colcon test
 
@@ -38,4 +36,7 @@ ctest --output-on-failure
     2. get position
         poetry run python -m chesscog.recognition.recognition testLocals/images/test#.png --[white | black]
 
+# gazebo commands
 
+# start gazebo
+gz sim

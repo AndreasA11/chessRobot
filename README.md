@@ -58,41 +58,137 @@ Development uses:
 
 ### Docker Development Workflow
 
-#### 1. Build the Docker Image
-Build the image containing your base dependencies (ROS2 Jazzy & Stockfish) from the repository root:
+## Docker Development Environment
+
+The project uses Docker containers to provide a consistent ROS 2 Jazzy environment. There are two containers:
+
+- **`chessrobot-dev`** — Main development environment for chess logic, ROS 2 packages, Stockfish integration, and testing.
+- **`chessrobot-sim`** — Simulation environment with Gazebo Harmonic and ROS-Gazebo integration.
+
+Both containers mount the same repository directory, so source-code changes are shared between them.
+
+### 1. Build the Docker Images
+
+Build the development image from the repository root:
+
 ```bash
-docker build -t chessrobot .
+docker build -t chessrobot:latest .
 ```
 
-#### 2. Start the Development Container (With Volume Mount)
-Run this command to start the container. It maps your current local directory into the container so code updates sync instantly:
+Build the simulation image:
+
 ```bash
-docker run -it --name chessrobot-dev -v "$(pwd)":/chessRobot chessrobot
+docker build -t chessrobot:sim .
 ```
 
+The simulation image includes the additional Gazebo and GUI dependencies.
 
-#### 3. Stop Instantly (Every Day After)
+### 2. Create the Development Container (First Time Only)
+
+Run from the repository root:
+
+```bash
+docker run -it \
+    --name chessrobot-dev \
+    -v "$(pwd)":/chessRobot \
+    chessrobot:latest
+```
+
+### 3. Create the Simulation Container (First Time Only)
+
+Run from the repository root in Ubuntu WSL:
+
+```bash
+docker run -it \
+    --name chessrobot-sim \
+    --network host \
+    -v "$(pwd)":/chessRobot \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v /mnt/wslg:/mnt/wslg \
+    -e DISPLAY=$DISPLAY \
+    -e WAYLAND_DISPLAY=$WAYLAND_DISPLAY \
+    -e XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
+    chessrobot:sim \
+    bash
+```
+
+The additional volume mounts and environment variables allow Gazebo's GUI to display through WSLg on the Windows desktop.
+
+### 4. Stop the Containers
+
+To stop a running container:
 
 ```bash
 docker stop chessrobot-dev
 ```
 
-OR if you are inside the container: 
+Or stop the simulation container:
+
+```bash
+docker stop chessrobot-sim
+```
+
+Alternatively, if you are inside a container, you can exit its shell:
 
 ```bash
 exit
 ```
 
-#### 4. Start Instantly (Every Day After)
+**Note:** Exiting the shell of a container started with `docker run -it` stops that container when its main process exits.
+
+### 5. Start the Containers (Every Day After)
+
+Start the development container:
+
 ```bash
 docker start -ai chessrobot-dev
 ```
 
-#### 5. Open an Additional Terminal Inside the Container
-If you already have the container running and need a second terminal session:
+Start the simulation container:
+
+```bash
+docker start -ai chessrobot-sim
+```
+
+You can also start both containers in the background:
+
+```bash
+docker start chessrobot-dev
+docker start chessrobot-sim
+```
+
+### 6. Open Additional Terminals Inside a Running Container
+
+If a container is already running, open another terminal session without stopping it.
+
+Development:
+
 ```bash
 docker exec -it chessrobot-dev bash
 ```
+
+Simulation:
+
+```bash
+docker exec -it chessrobot-sim bash
+```
+
+### 7. Run Gazebo
+
+Inside the simulation container:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+gz sim
+```
+
+### Important Notes
+
+- Both containers share the same source directory through the bind mount at `/chessRobot`.
+- The containers have separate installed dependencies and environments.
+- **Do not run `colcon build` in both containers simultaneously.** They share the `build/`, `install/`, and `log/` directories.
+- Use `chessrobot-dev` for normal development and testing. Use `chessrobot-sim` when working with Gazebo.
+- When modifying the Dockerfile, rebuild the corresponding image. Existing containers do not automatically update when an image is rebuilt. If dependencies change, recreate the affected container to use the updated image.
 
 #### 6. Building inside the Container
 Because ROS2 Jazzy is automatically sourced in your `.bashrc`, you only need to run:

@@ -1,5 +1,16 @@
 CURRENT STATE DOCUMENTATION 
 
+11/3/2026
+
+This project will use gazebo for the simulation instead of blender beacause we eventually want to also simulate an arm picking up pieces, so gazebo will be better for that.
+We will add another package <perception_pkg> to deal with the gazebo stuff, and just let perception_pkg deal with the actaul image from some given frames.
+The simulation package can eventually provide:
+- A world containing the chessboard and camera.
+- A method for spawning a position from FEN.
+- Camera image output.
+- Ground-truth labels.
+- Randomized rendering conditions.
+
 11/2/2026
 
 The perception plan has been layed out in implementation.md. Perception package will output the BoardObservation custom message using this pipeline to get there:  
