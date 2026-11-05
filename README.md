@@ -94,7 +94,7 @@ docker run -it \
     chessrobot:latest
 ```
 
-### 3. Create the Simulation Container (First Time Only)
+### 3a WINDOWS. Create the Simulation Container :
 
 Run from the repository root in Ubuntu WSL:
 
@@ -113,6 +113,25 @@ docker run -it \
 ```
 
 The additional volume mounts and environment variables allow Gazebo's GUI to display through WSLg on the Windows desktop.
+
+### 3b MAC. Create the Simulation Container :
+
+docker run -it \
+  --name chessrobot-sim \
+  -v "$(pwd)":/chessRobot \
+  -p 6080:6080 \
+  --shm-size=1g \
+  chessrobot:sim bash
+
+To run gazebo :
+    In the container
+    1.  Xvfb :0 -screen 0 1920x1080x24 +extension GLX +render -noreset &
+    2.  export DISPLAY=:0
+        export LIBGL_ALWAYS_SOFTWARE=1
+        export GALLIUM_DRIVER=llvmpipe
+        export QT_X11_NO_MITSHM=1
+    3.  x11vnc -display :0 -forever -shared -nopw -rfbport 5900 &
+    4.  websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
 
 ### 4. Stop the Containers
 
