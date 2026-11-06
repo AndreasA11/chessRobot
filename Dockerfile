@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y \
     libegl-mesa0 \
     && rm -rf /var/lib/apt/lists/*
 
+#pgn parser
+RUN pip3 install --no-cache-dir pgn-parser --break-system-packages
+
+
 # Make Stockfish accessible
 ENV PATH="/usr/games:${PATH}"
 

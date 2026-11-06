@@ -132,7 +132,7 @@ To run gazebo :
         export QT_X11_NO_MITSHM=1
     3.  x11vnc -display :0 -forever -shared -nopw -rfbport 5900 &
     4.  websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
-
+    5.  http://localhost:6080/vnc.html
 ### 4. Stop the Containers
 
 To stop a running container:
