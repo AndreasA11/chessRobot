@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from FakeSimulation import Color
-from ObservationNoise import NoiseConfig, ObservationNoise, ObservationPhase
+from NoiseAdapter import NoiseConfig, ObservationNoise, ObservationPhase
 
 E, W, B = Color.EMPTY.value, Color.WHITE.value, Color.BLACK.value
 P = ObservationPhase
