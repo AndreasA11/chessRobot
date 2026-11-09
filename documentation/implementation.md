@@ -1546,6 +1546,8 @@ The fake perception node will replay PGN games. For each move, it will publish o
 - A lifted-piece frame.
 - Settled observations after the move.
 
+We will also create a mode to allow for a human to enter in moves and play against engine (stockfish)
+
 ### Noise model
 
 The simulator should support configurable:
