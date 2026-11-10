@@ -5,8 +5,8 @@ import pytest
 import sys
 sys.path.insert(0, "../scripts") 
 
-from FakeSimulation import Color
-from NoiseAdapter import NoiseConfig, ObservationNoise, ObservationPhase
+from simulation_types import Color
+from noise_adapter import NoiseConfig, ObservationNoise, ObservationPhase
 
 E, W, B = Color.EMPTY.value, Color.WHITE.value, Color.BLACK.value
 P = ObservationPhase

@@ -1,4 +1,4 @@
-from SimulationTypes import Color, ObservationPhase, NoiseConfig
+from simulation_types import Color, ObservationPhase, NoiseConfig
 
 import chess
 import numpy as np
@@ -12,6 +12,7 @@ class ObservationNoise:
         self.config = config or NoiseConfig()
         self.rng = np.random.default_rng(seed)
         self._validate_config()
+        
 
     def _validate_config(self) -> None:
         probability_fields = [

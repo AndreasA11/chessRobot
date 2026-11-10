@@ -1,11 +1,8 @@
 
 
-from SimulationTypes import Color, ObservationPhase, Mode, NoiseConfig
-from NoiseAdapter import ObservationNoise
+from simulation_types import ObservationPhase, Mode, NoiseConfig
+from noise_adapter import ObservationNoise
 import numpy as np
-
-import random
-from enum import Enum
 
 import chess
 import chess.pgn
@@ -35,7 +32,9 @@ class FakeSimulation:
             seed=self.seed,
         )
 
-
+    def get_mode(self) -> Mode:
+        return self.mode
+    
     def parse_pgn(self, file_path: str) -> None:
         with open(file_path, encoding="utf-8") as pgn:
             self.game = chess.pgn.read_game(pgn)
@@ -68,8 +67,6 @@ class FakeSimulation:
     def get_ground_truth(self) -> chess.Board:
         return self.board.copy()
 
-    
-    from NoiseAdapter import ObservationPhase
     def get_observation(self, phase: ObservationPhase = ObservationPhase.SETTLED,) -> tuple[np.ndarray, bool]:
         """
         Generate a noisy observation of the current ground-truth board.
@@ -82,5 +79,30 @@ class FakeSimulation:
             board=self.board,
             phase=phase,
         )
-
+        
+        self.noisy_observation = observation
         return observation, usable        
+
+    def reset(self, seed: int | None = None) -> None:
+        """
+        Reset the simulation to the beginning of the game.
+
+        Args:
+            seed: Seed used to initialize the observation noise generator.
+        """
+        self.seed = seed
+
+        # Reset the ground-truth board.
+        self.board.reset()
+
+        # Rewind PGN traversal.
+        self.current_node = self.game
+
+        # Clear previous observation.
+        self.noisy_observation = None
+
+        # Reinitialize noise generator.
+        self.noise = ObservationNoise(
+            config=self.noise_config,
+            seed=self.seed,
+        )
