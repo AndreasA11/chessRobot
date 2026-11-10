@@ -1,43 +1,7 @@
-from FakeSimulation import Color
-
-from dataclasses import dataclass
-from enum import Enum
+from SimulationTypes import Color, ObservationPhase, NoiseConfig
 
 import chess
 import numpy as np
-
-EMPTY = Color.EMPTY.value
-WHITE = Color.WHITE.value
-BLACK = Color.BLACK.value
-
-
-class ObservationPhase(Enum):
-    SETTLED = 0   # board exactly as supplied
-    LIFTED = 1    # moving piece is in the air; nothing else has changed
-    MOVING = 2    # move partly executed (see _get_phase_classes)
-
-
-@dataclass
-class NoiseConfig:
-    # Stage 1: independent per-square errors
-    independent_error_rate: float = 0.05
-
-    # Stage 2: confidently incorrect predictions
-    confident_error_rate: float = 0.0
-    confident_error_probability: float = 0.99
-
-    # Stage 3: correlated errors
-    correlated_error_rate: float = 0.0
-    correlated_neighbor_rate: float = 0.5
-
-    # Stage 4: block occlusion
-    occlusion_rate: float = 0.0
-    max_occlusion_size: int = 3
-
-    # Stage 6: soft probabilities
-    soft_observations: bool = False
-    confidence: float = 0.95
-
 
 class ObservationNoise:
 
@@ -70,8 +34,8 @@ class ObservationNoise:
     def _true_class(self, board: chess.Board, square: int) -> int:
         piece = board.piece_at(square)
         if piece is None:
-            return EMPTY
-        return WHITE if piece.color == chess.WHITE else BLACK
+            return Color.EMPTY
+        return Color.WHITE if piece.color == chess.WHITE else Color.BLACK
 
     def _board_classes(self, board: chess.Board) -> np.ndarray:
         return np.array(
@@ -162,7 +126,7 @@ class ObservationNoise:
         if move not in board.legal_moves:
             raise ValueError(f"Illegal move {move.uci()} in {board.fen()}")
 
-        classes[move.from_square] = EMPTY
+        classes[move.from_square] = Color.EMPTY
 
         if phase == ObservationPhase.LIFTED:
             return classes
@@ -178,7 +142,7 @@ class ObservationNoise:
                 rook_from = chess.square(7 if kingside else 0, rank)
                 rook_to = chess.square(5 if kingside else 3, rank)
                 partial = after_classes.copy()
-                partial[rook_to] = EMPTY
+                partial[rook_to] = Color.EMPTY
                 partial[rook_from] = self._true_class(board, rook_from)
                 return partial
 
@@ -187,11 +151,11 @@ class ObservationNoise:
                     chess.square_file(move.to_square),
                     chess.square_rank(move.from_square),
                 )
-                classes[captured] = EMPTY
+                classes[captured] = Color.EMPTY
                 return classes  # destination is still empty too
 
             if board.is_capture(move):
-                classes[move.to_square] = EMPTY
+                classes[move.to_square] = Color.EMPTY
                 return classes
 
             return after_classes
