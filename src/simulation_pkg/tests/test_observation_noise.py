@@ -2,6 +2,9 @@ import chess
 import numpy as np
 import pytest
 
+import sys
+sys.path.insert(0, "../scripts") 
+
 from FakeSimulation import Color
 from NoiseAdapter import NoiseConfig, ObservationNoise, ObservationPhase
 
@@ -193,3 +196,97 @@ def test_illegal_move_rejected():
 def test_phase_without_move_rejected():
     with pytest.raises(ValueError):
         ObservationNoise(seed=0).generate(chess.Board(), None, P.MOVING)
+
+
+
+
+def test_confident_errors_receive_high_confidence():
+    cfg = NoiseConfig(
+        independent_error_rate=0.0,
+        confident_error_rate=1.0,
+        soft_observations=True,
+        confidence=0.80,
+        confident_error_probability=0.99,
+    )
+
+    board = chess.Board()
+    truth = clean_classes(board)
+
+    probs, _ = ObservationNoise(cfg, seed=0).generate(board)
+    p = probs.reshape(64, 3)
+
+    predicted = p.argmax(axis=1)
+    max_probability = p.max(axis=1)
+
+    # Every square should have high confidence.
+    assert np.allclose(max_probability, 0.99)
+
+    # Every square should be incorrectly classified.
+    assert np.all(predicted != truth)
+
+
+
+def test_ordinary_errors_receive_normal_confidence():
+    cfg = NoiseConfig(
+        independent_error_rate=1.0,
+        confident_error_rate=0.0,
+        soft_observations=True,
+        confidence=0.80,
+        confident_error_probability=0.99,
+    )
+
+    board = chess.Board()
+    truth = clean_classes(board)
+
+    probs, _ = ObservationNoise(cfg, seed=0).generate(board)
+    p = probs.reshape(64, 3)
+
+    predicted = p.argmax(axis=1)
+    max_probability = p.max(axis=1)
+
+    # Every square should have normal confidence.
+    assert np.allclose(max_probability, 0.80)
+
+    # Every square should be incorrectly classified.
+    assert np.all(predicted != truth)
+
+
+
+def test_confident_probability_only_on_wrong_squares():
+    cfg = NoiseConfig(
+        independent_error_rate=0.0,
+        confident_error_rate=0.4,
+        soft_observations=True,
+        confidence=0.80,
+        confident_error_probability=0.99,
+    )
+
+    board = chess.Board()
+    truth = clean_classes(board)
+
+    saw_confident = False
+    saw_normal = False
+
+    for seed in range(30):
+        probs, _ = ObservationNoise(cfg, seed=seed).generate(board)
+        p = probs.reshape(64, 3)
+
+        predicted = p.argmax(axis=1)
+        max_probability = p.max(axis=1)
+
+        confident = np.isclose(max_probability, 0.99)
+        normal = np.isclose(max_probability, 0.80)
+
+        # Confident predictions must be wrong.
+        assert np.all(predicted[confident] != truth[confident])
+
+        # Normal-confidence predictions should be correct because
+        # independent_error_rate is zero.
+        assert np.all(predicted[normal] == truth[normal])
+
+        saw_confident |= confident.any()
+        saw_normal |= normal.any()
+
+    # Across the seeds, both categories should appear.
+    assert saw_confident
+    assert saw_normal
