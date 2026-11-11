@@ -14,10 +14,11 @@ class ObservationPhase(Enum):
     LIFTED = "lifted"
     MOVING = "moving"
 
-class Mode(Enum):
+class Mode(IntEnum):
+    NA = 0
     PNG = 1
     HUMAN = 2
-    NA = 3
+    
 
 @dataclass
 class NoiseConfig:
@@ -39,3 +40,4 @@ class NoiseConfig:
     # Stage 6: soft probabilities
     soft_observations: bool = False
     confidence: float = 0.95
+

@@ -1,0 +1,20 @@
+observation_publisher:
+  ros__parameters:
+    seed: 0
+
+    # 0 = NA, 1 = PNG, 2 = HUMAN
+    mode: 0
+
+    # false = noise enabled, true = noise disabled
+    no_noise: false
+
+    noise:
+      independent_error_rate: 0.05
+      confident_error_rate: 0.0
+      confident_error_probability: 0.99
+      correlated_error_rate: 0.0
+      correlated_neighbor_rate: 0.5
+      occlusion_rate: 0.0
+      max_occlusion_size: 3
+      soft_observations: false
+      confidence: 0.95
