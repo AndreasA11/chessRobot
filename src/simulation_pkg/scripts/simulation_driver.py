@@ -38,7 +38,7 @@ class ObservationPublisher(Node):
         self.declare_parameter('no_noise', False)
         self.no_noise_ = self.get_parameter('no_noise').value
 
-        # PNG parameters
+        # PGN parameters
         self.declare_parameter('pgn_file', '')
         self.pgn_file_ = self.get_parameter('pgn_file').value
 
@@ -56,7 +56,7 @@ class ObservationPublisher(Node):
                 correlated_error_rate=0.0,
                 correlated_neighbor_rate=0.0,
                 occlusion_rate=0.0,
-                max_occlusion_size=0,
+                max_occlusion_size=1,
                 soft_observations=False,
                 confidence=1.0,
             )
@@ -90,7 +90,7 @@ class ObservationPublisher(Node):
 
         self.sim.mode = self.mode_
 
-        # PNG replay state
+        # PGN replay state
         self.initial_position_published_ = False
         self.replay_timer_ = None
 
@@ -101,9 +101,7 @@ class ObservationPublisher(Node):
             f"Observation publisher initialized: {self.mode_.name}"
         )
 
-    # --------------------------------------------------
-    # Shared observation functionality
-    # --------------------------------------------------
+  
 
     def publish_board_observation(
         self,
@@ -116,14 +114,16 @@ class ObservationPublisher(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'chessboard'
 
-        msg.probs = probs.tolist() if hasattr(probs, 'tolist') else list(probs)
-        msg.usable = bool(usable)
-        msg.settle_score = float(settle_score)
-
         if len(msg.probs) != 192:
             raise ValueError(
                 f"Expected 192 probabilities, received {len(msg.probs)}"
             )
+
+        msg.probs = probs.tolist() if hasattr(probs, 'tolist') else list(probs)
+        msg.usable = bool(usable)
+        msg.settle_score = float(settle_score)
+
+        
 
         self.publisher_.publish(msg)
 
@@ -131,19 +131,12 @@ class ObservationPublisher(Node):
             f"Published board observation. Usable: {msg.usable}"
         )
 
-    def generate_and_publish_observation(
-        self,
-        phase=ObservationPhase.SETTLED
-    ):
-        probs, usable = self.sim.get_observation(phase=phase)
-
-        self.publish_board_observation(
-            probs=probs,
-            usable=usable,
-        )
+    def generate_and_publish_observation(self, phase=ObservationPhase.SETTLED):
+        probs, usable, settle = self.sim.get_observation(phase=phase)
+        self.publish_board_observation(probs, usable, settle)
 
 
-    def png_obs(self):
+    def pgn_obs(self):
         if not self.pgn_file_:
             raise ValueError("No PGN file was provided.")
 
@@ -158,10 +151,10 @@ class ObservationPublisher(Node):
 
         self.replay_timer_ = self.create_timer(
             self.replay_interval_sec_,
-            self.png_replay_callback
+            self.pgn_replay_callback
         )
 
-    def png_replay_callback(self):
+    def pgn_replay_callback(self):
 
         # First publish the initial position.
         if not self.initial_position_published_:
@@ -219,17 +212,14 @@ class ObservationPublisher(Node):
                 f"Invalid human move received: {msg.data}"
             )
 
-    # --------------------------------------------------
-    # Driver entry point
-    # --------------------------------------------------
 
     def run_obs(self):
 
         if self.mode_ == Mode.NA:
             raise ValueError("No simulation mode was selected.")
 
-        elif self.mode_ == Mode.PNG:
-            self.png_obs()
+        elif self.mode_ == Mode.PGN:
+            self.pgn_obs()
 
         elif self.mode_ == Mode.HUMAN:
             self.human_obs()

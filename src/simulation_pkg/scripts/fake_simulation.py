@@ -26,7 +26,10 @@ class FakeSimulation:
 
         self.noise_config = noise_config or NoiseConfig()
         self.seed = seed 
-        
+
+        self.last_move = None
+        self.board_before_move = None
+
         self.noise = ObservationNoise(
             config=self.noise_config,
             seed=self.seed,
@@ -63,6 +66,11 @@ class FakeSimulation:
 
     def apply_move(self, move: chess.Move) -> chess.Board:
         """Apply any move (PGN, human, engine) to ground truth. Returns the board BEFORE the move."""
+        before = self.board.copy()
+        self.board.push(move)
+        self.board_before_move = before
+        self.last_move = move
+
         if move not in self.board.legal_moves:
             raise ValueError(f"Illegal move {move.uci()} in {self.board.fen()}")
         before = self.board.copy()
@@ -76,20 +84,22 @@ class FakeSimulation:
         return self.board.copy()
 
     def get_observation(self, phase: ObservationPhase = ObservationPhase.SETTLED,) -> tuple[np.ndarray, bool]:
-        """
-        Generate a noisy observation of the current ground-truth board.
-
-        Returns:
-            observation: Flattened float32 array of shape (192,).
-            usable: Whether the observation is usable for inference.
-        """
-        observation, usable = self.noise.generate(
-            board=self.board,
-            phase=phase,
-        )
-        
-        self.noisy_observation = observation
-        return observation, usable        
+        """Returns (probs, usable, settle_score)."""
+        if phase == ObservationPhase.SETTLED:
+            probs, usable = self.noise.generate(board=self.board, phase=phase)
+            settle = 0.0
+        else:
+            if self.last_move is None:
+                raise RuntimeError("No move has been applied yet.")
+            probs, _ = self.noise.generate(
+                board=self.board_before_move,
+                move=self.last_move,
+                phase=phase,
+            )
+            usable = False  # hand is in motion
+            settle = 0.5 if phase == ObservationPhase.LIFTED else 1.0
+        self.noisy_observation = probs
+        return probs, usable, settle    
 
     def reset(self, seed: int | None = None) -> None:
         """

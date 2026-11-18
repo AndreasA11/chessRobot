@@ -16,7 +16,7 @@ class ObservationPhase(Enum):
 
 class Mode(IntEnum):
     NA = 0
-    PNG = 1
+    PGN = 1
     HUMAN = 2
     
 
