@@ -62,15 +62,15 @@ class FakeSimulation:
 
     def apply_move(self, move: chess.Move) -> chess.Board:
         """Apply any move (PGN, human, engine) to ground truth. Returns the board BEFORE the move."""
+        # Validate first, against the current position, before touching any state.
+        if move not in self.board.legal_moves:
+            raise ValueError(f"Illegal move {move.uci()} in {self.board.fen()}")
+
         before = self.board.copy()
         self.board.push(move)
         self.board_before_move = before
         self.last_move = move
 
-        if move not in self.board.legal_moves:
-            raise ValueError(f"Illegal move {move.uci()} in {self.board.fen()}")
-        before = self.board.copy()
-        self.board.push(move)
         if self.current_node is not None and not self.current_node.is_end() \
                 and self.current_node.variation(0).move == move:
             self.current_node = self.current_node.variation(0)
