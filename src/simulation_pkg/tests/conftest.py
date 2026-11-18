@@ -12,9 +12,13 @@ import chess
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import sys
+sys.path.insert(0, "../scripts") 
 
-from simulation_types import Color, NoiseConfig  # noqa: E402
+
+from simulation_types import Color
+from fake_simulation import FakeSimulation
+from noise_adapter import NoiseConfig, ObservationNoise, ObservationPhase
 
 
 def make_config(**overrides) -> NoiseConfig:

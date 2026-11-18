@@ -25,7 +25,7 @@ def test_get_ground_truth_returns_copy():
 def test_get_observation_shape_and_dtype():
     sim = FakeSimulation()
 
-    observation, usable = sim.get_observation()
+    observation, usable, _ = sim.get_observation()
 
     assert observation.shape == (192,)
     assert observation.dtype == np.float32
@@ -45,7 +45,7 @@ def test_get_observation_matches_ground_truth_without_noise():
         noise_config=NoiseConfig(independent_error_rate=0.0)
     )
 
-    observation, usable = sim.get_observation()
+    observation, usable, _ = sim.get_observation()
 
     assert usable
 
@@ -82,8 +82,8 @@ def test_simulation_observation_is_reproducible():
     sim1 = FakeSimulation(noise_config=config, seed=42)
     sim2 = FakeSimulation(noise_config=config, seed=42)
 
-    obs1, usable1 = sim1.get_observation()
-    obs2, usable2 = sim2.get_observation()
+    obs1, usable1, _ = sim1.get_observation()
+    obs2, usable2, _ = sim2.get_observation()
 
     np.testing.assert_array_equal(obs1, obs2)
     assert usable1 == usable2
@@ -125,11 +125,11 @@ def test_reset_reproduces_observations():
 
     sim = FakeSimulation(noise_config=config, seed=42)
 
-    first_observation, first_usable = sim.get_observation()
+    first_observation, first_usable, _ = sim.get_observation()
 
     sim.reset(seed=42)
 
-    second_observation, second_usable = sim.get_observation()
+    second_observation, second_usable, _ = sim.get_observation()
 
     np.testing.assert_array_equal(
         first_observation,

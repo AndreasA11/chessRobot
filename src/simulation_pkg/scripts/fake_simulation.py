@@ -37,10 +37,6 @@ class FakeSimulation:
 
         
 
-    
-
-
-
 
 
     def get_mode(self) -> Mode:

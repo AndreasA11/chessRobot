@@ -27,8 +27,6 @@ ctest -N
 # Actually run those tests directly
 ctest --output-on-failure
 
-
-
 #chesscog commands:
     1. find corners
         poetry run python -m chesscog.corner_detection.detect_corners testLocals/images/test#.png
