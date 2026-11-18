@@ -25,11 +25,14 @@ class FakeSimulation:
         self.mode = Mode.NA
 
         self.noise_config = noise_config or NoiseConfig()
-
+        self.seed = seed 
+        
         self.noise = ObservationNoise(
             config=self.noise_config,
             seed=self.seed,
         )
+
+        
 
     
 

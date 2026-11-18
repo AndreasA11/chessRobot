@@ -1,20 +1,27 @@
 from fake_simulation import FakeSimulation
-from simulation_types import NoiseConfig, Mode
+from simulation_types import NoiseConfig, Mode, ObservationPhase
+
 from dataclasses import fields
 
+import chess
 import rclpy
 from rclpy.node import Node
 
-
-
+from std_msgs.msg import String
 from board_observation_interface.msg import BoardObservation
 
-class observation_publisher(Node):
+
+class ObservationPublisher(Node):
 
     def __init__(self):
         super().__init__('observation_publisher')
 
-        self.publisher_ = self.create_publisher(BoardObservation,'camera_board_observation',10)
+        # Publisher
+        self.publisher_ = self.create_publisher(
+            BoardObservation,
+            'camera_board_observation',
+            10
+        )
 
         # General simulation parameters
         self.declare_parameter('seed', 0)
@@ -22,10 +29,23 @@ class observation_publisher(Node):
 
         self.declare_parameter('mode', 0)
         mode_value = self.get_parameter('mode').value
-        self.mode_ = Mode(mode_value)
+
+        try:
+            self.mode_ = Mode(mode_value)
+        except ValueError:
+            raise ValueError(f"Invalid simulation mode: {mode_value}")
 
         self.declare_parameter('no_noise', False)
         self.no_noise_ = self.get_parameter('no_noise').value
+
+        # PNG parameters
+        self.declare_parameter('pgn_file', '')
+        self.pgn_file_ = self.get_parameter('pgn_file').value
+
+        self.declare_parameter('replay_interval_sec', 2.0)
+        self.replay_interval_sec_ = self.get_parameter(
+            'replay_interval_sec'
+        ).value
 
         # Construct noise configuration
         if self.no_noise_:
@@ -44,7 +64,6 @@ class observation_publisher(Node):
         else:
             default_config = NoiseConfig()
 
-            # Declare one ROS parameter for each NoiseConfig field
             for field in fields(NoiseConfig):
                 if not field.init:
                     continue
@@ -54,7 +73,6 @@ class observation_publisher(Node):
 
                 self.declare_parameter(param_name, default_value)
 
-            # Retrieve parameters and construct NoiseConfig
             noise_params = self.get_parameters_by_prefix('noise')
 
             config_dict = {
@@ -65,44 +83,177 @@ class observation_publisher(Node):
             noise_config = NoiseConfig(**config_dict)
 
         # Initialize simulation
-        self.sim = FakeSimulation(noise_config=noise_config,seed=seed_value)
+        self.sim = FakeSimulation(
+            noise_config=noise_config,
+            seed=seed_value
+        )
+
         self.sim.mode = self.mode_
 
+        # PNG replay state
+        self.initial_position_published_ = False
+        self.replay_timer_ = None
 
-    def publish_board_observation(self, board_obs_in : BoardObservation):
-            msg = board_obs_in
-            self.publisher_.publish(msg)
-            self.get_logger().info('Publishing: "%s"' % msg.data)
+        # Human move subscription
+        self.human_subscription_ = None
+
+        self.get_logger().info(
+            f"Observation publisher initialized: {self.mode_.name}"
+        )
+
+    # --------------------------------------------------
+    # Shared observation functionality
+    # --------------------------------------------------
+
+    def publish_board_observation(
+        self,
+        probs,
+        usable,
+        settle_score=0.0
+    ):
+        msg = BoardObservation()
+
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'chessboard'
+
+        msg.probs = probs.tolist() if hasattr(probs, 'tolist') else list(probs)
+        msg.usable = bool(usable)
+        msg.settle_score = float(settle_score)
+
+        if len(msg.probs) != 192:
+            raise ValueError(
+                f"Expected 192 probabilities, received {len(msg.probs)}"
+            )
+
+        self.publisher_.publish(msg)
+
+        self.get_logger().info(
+            f"Published board observation. Usable: {msg.usable}"
+        )
+
+    def generate_and_publish_observation(
+        self,
+        phase=ObservationPhase.SETTLED
+    ):
+        probs, usable = self.sim.get_observation(phase=phase)
+
+        self.publish_board_observation(
+            probs=probs,
+            usable=usable,
+        )
+
 
     def png_obs(self):
-        board_observation = None
-        if(board_observation == None):
-            raise ValueError(f"No observation was made: {board_observation}")
-        self.publish_board_observation(board_observation)
-      
+        if not self.pgn_file_:
+            raise ValueError("No PGN file was provided.")
+
+        self.sim.parse_pgn(self.pgn_file_)
+
+        self.get_logger().info(
+            f"Loaded PGN: {self.pgn_file_}"
+        )
+
+        # Publish initial board position first, then advance moves.
+        self.initial_position_published_ = False
+
+        self.replay_timer_ = self.create_timer(
+            self.replay_interval_sec_,
+            self.png_replay_callback
+        )
+
+    def png_replay_callback(self):
+
+        # First publish the initial position.
+        if not self.initial_position_published_:
+            self.generate_and_publish_observation()
+            self.initial_position_published_ = True
+            return
+
+        # Check for the next PGN move.
+        move = self.sim.peek_pgn_move()
+
+        if move is None:
+            self.get_logger().info("PGN replay finished.")
+            self.replay_timer_.cancel()
+            return
+
+        # Advance the simulated board.
+        self.sim.apply_move(move)
+
+        self.get_logger().info(
+            f"Applied PGN move: {move.uci()}"
+        )
+
+        # Publish the resulting board observation.
+        self.generate_and_publish_observation()
+
 
     def human_obs(self):
-        board_observation = None
-        if(board_observation == None):
-            raise ValueError(f"No observation was made: {board_observation}")
-        self.publish_board_observation(board_observation)
-       
 
-    def run_obs(self) :
-        if(self.mode_value == Mode.NA):
-            raise ValueError(f"No Mode was selected: {self.mode_value}")
-        elif(self.mode_value == Mode.PNG):
+        self.human_subscription_ = self.create_subscription(
+            String,
+            'human_move',
+            self.human_move_callback,
+            10
+        )
+
+        self.get_logger().info(
+            "Human mode ready. Waiting for UCI moves on /human_move."
+        )
+
+    def human_move_callback(self, msg: String):
+
+        try:
+            move = chess.Move.from_uci(msg.data.strip())
+
+            self.sim.apply_move(move)
+
+            self.get_logger().info(
+                f"Received human move: {move.uci()}"
+            )
+
+            self.generate_and_publish_observation()
+
+        except (ValueError, chess.InvalidMoveError):
+            self.get_logger().error(
+                f"Invalid human move received: {msg.data}"
+            )
+
+    # --------------------------------------------------
+    # Driver entry point
+    # --------------------------------------------------
+
+    def run_obs(self):
+
+        if self.mode_ == Mode.NA:
+            raise ValueError("No simulation mode was selected.")
+
+        elif self.mode_ == Mode.PNG:
             self.png_obs()
-        else:
+
+        elif self.mode_ == Mode.HUMAN:
             self.human_obs()
+
+        else:
+            raise ValueError(f"Unsupported mode: {self.mode_}")
 
 
 def main(args=None):
+
     rclpy.init(args=args)
-    minimal_publisher = observation_publisher()
-    rclpy.spin(minimal_publisher)
-    minimal_publisher.destroy_node()
-    rclpy.shutdown()
+
+    observation_publisher = ObservationPublisher()
+
+    try:
+        observation_publisher.run_obs()
+        rclpy.spin(observation_publisher)
+
+    except KeyboardInterrupt:
+        pass
+
+    finally:
+        observation_publisher.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

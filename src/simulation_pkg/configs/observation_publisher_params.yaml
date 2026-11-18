@@ -8,6 +8,9 @@ observation_publisher:
     # false = noise enabled, true = noise disabled
     no_noise: false
 
+    pgn_file: "chessRob/src/simulation_pkg/pgn_games/Carlsen1.pgn"
+    replay_interval_sec: 2.0
+
     noise:
       independent_error_rate: 0.05
       confident_error_rate: 0.0
